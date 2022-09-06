@@ -66,6 +66,9 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        organizationName = "University of Florida",
                        electronicMailAddress = " "))
 
+model_name = "Test"
+model_id = "theory_test"
+
 theme = c("terrestrial_30min") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
 #Step 1: Download latest target data and site description data
@@ -203,17 +206,17 @@ write_csv(forecast, forecast_file)
 #neon4cast::forecast_output_validator(forecast_file)
 ```
 
-Will need to change this later
+This is filled in for our null model starting point, but will need to modify down the road
 ```{r}
 # Step 4: Generate metadata
 
 model_metadata = list(
   forecast = list(
     model_description = list(
-      forecast_model_id =  "air2waterSat",  #What goes here
-      name = "Air temperatuer to water temperature linear regression plus assume saturated oxygen", 
+      forecast_model_id =  model_id, 
+      name = model_name, 
       type = "empirical",  
-      repository = "https://github.com/rqthomas/neon4cast-example" 
+      repository = "https://github.com/abbylewis/EFI_Theory" 
     ),
     initial_conditions = list(
       status = "absent"
