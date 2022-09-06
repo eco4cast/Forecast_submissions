@@ -45,6 +45,8 @@ download_target <- function(theme = c("aquatics", "beetles",
 
 Using a neon4cast example found here: https://github.com/eco4cast/neon4cast-example
 One thing that is nice about this example is we can easily set it up to run automatically using code from this repository
+
+I think my vision is that we would set things up to loop through all themes and run the following code (so not running all simultaneously). But could be convinced otherwise!
 ```{r}
 dir.create("drivers", showWarnings = FALSE)
 
