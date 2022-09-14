@@ -12,9 +12,12 @@ knitr::opts_chunk$set(echo = TRUE)
 library(neon4cast)
 library(tidyverse)
 library(lubridate)
-install.packages("rMR")
+library(tsibble)
+library(fable)
+#install.packages("rMR")
 library(rMR)
 ```
+
 
 Neon4cast has functions for a lot of what we are hoping to do! Here I am reviving a deprecated function from that package to download data for a given target (why was this function deprecated?? unsure)
 ```{r}
@@ -37,16 +40,16 @@ download_target <- function(theme = c("aquatics", "beetles",
                            theme, "/", target_file)
   
   readr::read_csv(download_url, show_col_types = FALSE,
-                  lazy = FALSE, progress = FALSE)%>% 
-  as_tibble(index=time, key=siteID)
+                  lazy = FALSE, progress = FALSE)#%>% 
+  #as_tibble(index=time, key=siteID)
   
 }
 ```
 
+
 Using a neon4cast example found here: https://github.com/eco4cast/neon4cast-example
 One thing that is nice about this example is we can easily set it up to run automatically using code from this repository
 
-I think my vision is that we would set things up to loop through all themes and run the following code (so not running all simultaneously). But could be convinced otherwise!
 ```{r}
 dir.create("drivers", showWarnings = FALSE)
 
@@ -60,16 +63,13 @@ team_name <- "EFI Theory"
 team_list <- list(list(individualName = list(givenName = "Abby", 
                                              surName = "Lewis"),
                        organizationName = "Virginia Tech",
-                       electronicMailAddress = "aslewis@vt.edu"),
-                  list(individualName = list(givenName = "Sikander", 
-                                             surName = "Khare"),
-                       organizationName = "University of Florida",
-                       electronicMailAddress = " "))
+                       electronicMailAddress = "aslewis@vt.edu")
+                  )
 
 model_name = "Test"
 model_id = "theory_test"
 
-theme = c("terrestrial_30min") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
+theme = c("aquatics") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
 #Step 1: Download latest target data and site description data
 
@@ -80,15 +80,154 @@ site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4ca
   filter(get(type)==1)
 
 #Step 2: Get drivers (currently noaa forecasts aren't working)
-sites <- unique(target$site_id)
+if("site_id" %in% colnames(target)){
+  target = target%>%
+    rename(siteID = site_id)
+}
+sites <- unique(target$siteID)
 
 ```
+
+
+Generate nulls
+
+```{r}
+#Step 3.0: Generate forecasts for each site
+forecast <- NULL
+
+# Get site information for elevation
+site_info <- site_data %>% filter(field_site_id == sites[i]) 
+
+site_target <- target |> 
+  filter(siteID %in% sites)
+
+#noaa_future_site <- noaa_future |> 
+#  filter(site_id == sites[i])
+
+# drop last 35 days and use explicit NAs for gaps in timeseries
+blinded_target <- site_target %>% 
+  #filter(time < max(time) - 35) %>% 
+  group_by(time, siteID)%>%
+  summarize_all(mean)%>%
+  as_tsibble(index=time, key=siteID)%>%
+  fill_gaps()
+
+vars = c("temperature","oxygen")
+
+forecast <- data.frame(time=as.Date(integer(0),origin = "1970-01-01"),
+                start_time=as.Date(integer(0),origin = "1970-01-01"),
+                siteID=character(),
+                variable=character(),
+                ensemble=numeric(),
+                predicted=numeric())
+for(var in vars){
+  
+  # A simple random walk forecast, see ?fable::RW
+  var_fc <- blinded_target%>%
+    model(null = RW(!!sym(var))) %>%
+    forecast(h = "35 days") %>%
+    efi_format()%>%
+    pivot_longer(cols = all_of(var), names_to = "variable", values_to = "predicted")
+  
+  # combine into single table
+  forecast <- forecast%>%
+    full_join(var_fc)
+  
+}
+
+## Write the forecast to a file following EFI naming conventions:
+forecast_file <- glue::glue("{theme}-{date}-{team}.csv.gz",
+                            theme = theme, 
+                            date=Sys.Date(),
+                            team = team_name)
+write_csv(forecast, forecast_file)
+
+forecast <- forecast |> 
+  mutate(start_time = forecast_date) |> #start_time is today
+  select(time, start_time, siteID, variable, ensemble, predicted)
+
+#Visualize forecast.  Is it reasonable?
+forecast %>% 
+  ggplot(aes(x = time, y = predicted, group = ensemble)) +
+  geom_line() +
+  facet_grid(variable~siteID, scale ="free")
+
+#Forecast output file name in standards requires for Challenge.  
+# csv.gz means that it will be compressed
+forecast_file <- paste0(theme,"-",min(forecast$time),"-",team_name,".csv.gz")
+
+#Write csv to disk
+write_csv(forecast, forecast_file)
+
+#Confirm that output file meets standard for Challenge
+neon4cast::forecast_output_validator(forecast_file)
+
+```
+
+
+Submit!
+
+```{r}
+# Step 4: Generate metadata
+
+model_metadata = list(
+  forecast = list(
+    model_description = list(
+      forecast_model_id =  model_id, 
+      name = model_name, 
+      type = "empirical",  
+      repository = "https://github.com/abbylewis/EFI_Theory" 
+    ),
+    initial_conditions = list(
+      status = "absent"
+    ),
+    drivers = list(
+      status = "propagates",
+      complexity = 1, #Just temperature
+      propagation = list( 
+        type = "ensemble", 
+        size = 31) 
+    ),
+    parameters = list(
+      status = "absent"
+    ),
+    random_effects = list(
+      status = "absent"
+    ),
+    process_error = list(
+      status = "absent"
+    ),
+    obs_error = list(
+      status = "absent"
+    )
+  )
+)
+
+metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata)
+
+# Step 5: Submit forecast!
+
+
+neon4cast::submit(forecast_file = forecast_file, metadata = metadata_file, ask = FALSE)
+```
+
+
+
+
+
+Consider adding back in later (not currently working)
+
 
 Separating the code below because noaa forecast downloads aren't working
 ```{r}
 df_past <- neon4cast::noaa_stage3()#This should be a function from neon4cast but looks like something got messed up. Will need to fix later
-
+neon4cast::noaa_stage1()
 df_future <- neon4cast::noaa_stage2() #Same as above
+
+data = neon4cast::download_noaa(sites)
+read.csv(data)
+path = download_forecast("phenology")
+list.files(paste0(path,"/downloaded_packages"))
 
 noaa_past <- df_past |> 
   dplyr::filter(site_id %in% sites,
@@ -134,119 +273,4 @@ ggplot(target, aes(x = temperature, y = air_temperature)) +
 
 ```
 
-Sikander- this is probably the relevant part for you to modify!
-```{r}
-#Step 3.0: Generate forecasts for each site
 
-forecast <- NULL
-
-for(i in 1:length(sites)){
-  
-  # Get site information for elevation
-  site_info <- site_data %>% filter(field_site_id == sites[i]) 
-  
-  site_target <- target |> 
-    filter(site_id == sites[i])
-  
-  noaa_future_site <- noaa_future |> 
-    filter(site_id == sites[i])
-  
-  if(length(which(!is.na(site_target$air_temperature) & !is.na(site_target$temperature))) > 0){
-    
-    #Fit linear model based on past data: water temperature = m * air temperature + b
-    fit <- lm(site_target$temperature~site_target$air_temperature)
-    
-    #use linear regression to forecast water temperature for each ensemble member
-    forecasted_temperature <- fit$coefficients[1] + fit$coefficients[2] * noaa_future_site$air_temperature
-    
-    #use forecasted temperature to predict oyxgen by assuming that oxygen is saturated.  
-    forecasted_oxygen <- rMR::Eq.Ox.conc(forecasted_temperature, elevation.m = ,site_info$field_mean_elevation_m, 
-                                         bar.press = NULL, 
-                                         bar.units = NULL,
-                                         out.DO.meas = "mg/L",
-                                         salinity = 0, 
-                                         salinity.units = "pp.thou")
-    
-    temperature <- tibble(time = noaa_future_site$time,
-                          site_id = sites[i],
-                          ensemble = noaa_future_site$ensemble,
-                          predicted = forecasted_temperature,
-                          variable = "temperature")
-    
-    oxygen <- tibble(time = noaa_future_site$time,
-                     site_id = sites[i],
-                     ensemble = noaa_future_site$ensemble,
-                     predicted = forecasted_oxygen,
-                     variable = "oxygen")
-    
-    
-    #Build site level dataframe.  Note we are not forecasting chla
-    forecast <- dplyr::bind_rows(forecast, temperature, oxygen)
-  }
-}
-
-forecast <- forecast |> 
-  mutate(start_time = forecast_date) |> #start_time is today
-  select(time, start_time, site_id, variable, ensemble, predicted)
-
-#Visualize forecast.  Is it reasonable?
-forecast %>% 
-  ggplot(aes(x = time, y = predicted, group = ensemble)) +
-  geom_line() +
-  facet_grid(variable~site_id, scale ="free")
-
-#Forecast output file name in standards requires for Challenge.  
-# csv.gz means that it will be compressed
-forecast_file <- paste0("aquatics","-",min(forecast$time),"-",team_name,".csv.gz")
-
-#Write csv to disk
-write_csv(forecast, forecast_file)
-
-#Confirm that output file meets standard for Challenge
-#neon4cast::forecast_output_validator(forecast_file)
-```
-
-This is filled in for our null model starting point, but will need to modify down the road
-```{r}
-# Step 4: Generate metadata
-
-model_metadata = list(
-  forecast = list(
-    model_description = list(
-      forecast_model_id =  model_id, 
-      name = model_name, 
-      type = "empirical",  
-      repository = "https://github.com/abbylewis/EFI_Theory" 
-    ),
-    initial_conditions = list(
-      status = "absent"
-    ),
-    drivers = list(
-      status = "propagates",
-      complexity = 1, #Just temperature
-      propagation = list( 
-        type = "ensemble", 
-        size = 31) 
-    ),
-    parameters = list(
-      status = "absent"
-    ),
-    random_effects = list(
-      status = "absent"
-    ),
-    process_error = list(
-      status = "absent"
-    ),
-    obs_error = list(
-      status = "absent"
-    )
-  )
-)
-
-metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata)
-
-# Step 5: Submit forecast!
-
-
-neon4cast::submit(forecast_file = forecast_file, metadata = metadata_file, ask = FALSE)
-```
