@@ -1,0 +1,37 @@
+---
+title: "theory"
+author: "Abby Lewis"
+date: "7/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#library(devtools)
+remotes::install_github("eco4cast/neon4cast")
+install.packages("arrow", type = "source")
+library(neon4cast)
+#library(arrow)
+#library(tidyverse)
+#library(tools)
+#library(scales)
+#library(mgcv)
+
+s3 <- arrow::s3_bucket(bucket = "scores/parquet",
+                        endpoint_override = "data.ecoforecast.org",
+                        anonymous=TRUE)
+ds <- arrow::open_dataset(s3, partition="theme")
+
+Sys.unsetenv("AWS_DEFAULT_REGION")
+Sys.unsetenv("AWS_S3_ENDPOINT")
+Sys.setenv(AWS_EC2_METADATA_DISABLED="TRUE")
+
+s3 <- arrow::s3_bucket(bucket = "neon4cast-scores/parquet",
+                        endpoint_override = "data.ecoforecast.org",
+                        anonymous=TRUE)
+ds <- arrow::open_dataset(s3, partition="theme")
+```
+
