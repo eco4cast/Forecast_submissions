@@ -21,8 +21,7 @@ source("download_target.R")
 
 
 TO DO:
-set timestamp for each challenge
-format random walk to avoid negative values
+Deal with weekly timesteps
 
 
 
