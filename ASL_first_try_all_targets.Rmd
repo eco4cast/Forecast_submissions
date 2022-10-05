@@ -16,6 +16,7 @@ library(tsibble)
 library(fable)
 #install.packages("rMR")
 library(rMR)
+source("download_target.R")
 ```
 
 
@@ -25,43 +26,9 @@ format random walk to avoid negative values
 
 
 
-Neon4cast has functions for a lot of what we are hoping to do! Here I am reviving a deprecated function from that package to download data for a given target (why was this function deprecated?? unsure)
-```{r}
-#Using this deprecated function from neon4cast
-#https://github.com/eco4cast/neon4cast/blob/main/R/download_target.R
-download_target <- function(theme = c("aquatics", "beetles",
-                                      "phenology", "terrestrial_30min",
-                                      "terrestrial_daily","ticks")){  
-    theme <- match.arg(theme)
-    
-    target_file <- switch(theme,
-                          aquatics = "aquatics-targets.csv.gz",
-                          beetles = "beetles-targets.csv.gz",
-                          phenology = "phenology-targets.csv.gz",
-                          terrestrial_daily = "terrestrial_daily-targets.csv.gz",
-                          terrestrial_30min = "terrestrial_30min-targets.csv.gz",
-                          ticks = "ticks-targets.csv.gz"
-    )
-    download_url <- paste0("https://data.ecoforecast.org/targets/",
-                           theme, "/", target_file)
-  
-  readr::read_csv(download_url, show_col_types = FALSE,
-                  lazy = FALSE, progress = FALSE)#%>% 
-  #as_tibble(index=time, key=siteID)
-  
-}
-```
-
-
 Using a neon4cast example found here: https://github.com/eco4cast/neon4cast-example
 One thing that is nice about this example is we can easily set it up to run automatically using code from Quinn
-
 ```{r}
-dir.create("drivers", showWarnings = FALSE)
-
-forecast_date <- Sys.Date()
-noaa_date <- Sys.Date() - days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
-
 #Step 0: Define team name, team members, and theme
 
 team_name <- "EFI Theory"
@@ -75,8 +42,12 @@ team_list <- list(list(individualName = list(givenName = "Abby",
 model_name = "Test"
 model_id = "theory_test"
 
-theme = c("beetles") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
+theme = c("phenology") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
+```
 
+
+That's it! Now run the next chunk to generate and visualize your forecast!
+```{R}
 #Step 1: Download latest target data and site description data
 
 target = download_target(theme)
@@ -85,68 +56,91 @@ type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial
 site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
   filter(get(type)==1)
 
-#Step 2: Get drivers (currently noaa forecasts aren't working)
-if("site_id" %in% colnames(target)){
+
+
+#Step 2: Get drivers (currently noaa forecasts aren't included)
+
+dir.create("drivers", showWarnings = FALSE)
+
+forecast_date <- Sys.Date()
+noaa_date <- Sys.Date() - days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
+
+if("site_id" %in% colnames(target)){ #Sometimes the site is called site_id instead of siteID. Fixing here
   target = target%>%
     rename(siteID = site_id)
 }
-sites <- unique(target$siteID)
+if("datetime" %in% colnames(target)){ #Sometimes the time column is instead labeled "datetime"
+  target = target%>%
+    rename(time = datetime)
+}
+sites <- unique(target$siteID) #List sites for this challenge
+
 
 
 #Step 3.0: Generate forecasts for each site
 
-# Get site information for elevation
-site_info <- site_data %>% filter(field_site_id == sites[i]) 
+# Get site information
+site_info <- site_data %>% filter(field_site_id %in% sites) 
 
-site_target <- target |> 
+site_target <- target %>%
   filter(siteID %in% sites)
 
 #noaa_future_site <- noaa_future |> 
 #  filter(site_id == sites[i])
 
-# drop last 35 days and use explicit NAs for gaps in timeseries
+# use explicit NAs for gaps in timeseries
 blinded_target <- site_target %>% 
-  #filter(time < max(time) - 35) %>% 
-  group_by(time, siteID)%>%
-  summarize_all(mean)%>%
-  as_tsibble(index=time, key=siteID)%>%
-  fill_gaps()
+  group_by(time, siteID, variable)%>%
+  summarize_all(mean, na.rm = T)%>%
+  as_tsibble(index="time", key=c("variable","siteID"))%>%
+  fill_gaps(.end = Sys.Date())
 
-if(type == "aquatics")           {vars = c("temperature","oxygen","chla")}
-if(type == "ticks")              {vars = c("amblyomma_americanum")}
-if(type == "phenology")          {vars = c("gcc_90","rcc_90")}
-if(type == "beetles")            {vars = c("abundance","richness")}
-if(type == "terrestrial_daily")  {vars = c("nee","le")}
+if(type == "aquatics")           {vars = c("temperature","oxygen","chla")
+                                  horiz = 30
+                                  step = 1
+                                  }
+if(type == "ticks")              {vars = c("amblyomma_americanum")
+                                  horiz = 52 #52 weeks
+                                  step = 7
+                                  }
+if(type == "phenology")          {vars = c("gcc_90","rcc_90")
+                                  horiz = 30 
+                                  step = 1}
+if(type == "beetles")            {vars = c("abundance","richness")
+                                  horiz = 52
+                                  step = 7}
+if(type == "terrestrial_daily")  {vars = c("nee","le")
+                                  horiz = 30
+                                  step = 1}#need to make this flexible for 30 min challenge
+if(type == "terrestrial_30min")  {vars = c("nee","le")
+                                  horiz = 30
+                                  step = 1/24/2}
 
-forecast <- data.frame(time=as.Date(integer(0),origin = "1970-01-01"),
-                start_time=as.Date(integer(0),origin = "1970-01-01"),
-                siteID=character(),
-                variable=character(),
-                ensemble=numeric(),
-                predicted=numeric())
-for(var in vars){
-  
-  # A simple random walk forecast, see ?fable::RW
-  var_fc <- blinded_target%>%
-    model(null = RW(!!sym(var))) %>%
-    forecast(h = "35 days") %>%
-    efi_format()%>%
-    pivot_longer(cols = all_of(var), names_to = "variable", values_to = "predicted")
-  
-  # combine into single table
-  forecast <- forecast%>%
-    full_join(var_fc)
-  
-}
+# 2. Run through each via map
+# Requires a dataframe that has each of the variable in the RW_forecast function
+site_var_combinations <- expand.grid(site = unique(target$siteID),
+                                     var = unique(target$variable)) %>%
+  # assign the transformation depending on the variable. chla and oxygen get a log(x) transformation
+  mutate(transformation = ifelse(var %in% c('chla', 'oxygen','abundance','richness','amblyomma_americanum'), 'log', 'none')) %>%
+  mutate(boot_number = 200,
+         h = horiz,
+         bootstrap = T, 
+         verbose = T)
 
-## Write the forecast to a file following EFI naming conventions:
-forecast_file <- glue::glue("{theme}-{date}-{team}.csv.gz",
-                            theme = theme, 
-                            date=Sys.Date(),
-                            team = team_name)
-write_csv(forecast, forecast_file)
+# runs the RW forecast for each combination of variable and site_id
+RW_forecasts <- purrr::pmap_dfr(site_var_combinations, RW_daily_forecast) 
 
-forecast <- forecast |> 
+# convert the output into EFI standard
+forecast <- RW_forecasts %>%
+  rename(ensemble = .rep,
+         predicted = .sim) %>%
+  # For the EFI challenge we only want the forecast for future
+  filter(time > Sys.Date()) %>%
+  group_by(siteID, variable) %>%
+  mutate(start_time = min(time) - lubridate::days(1)) %>%
+  select(time, start_time, siteID, ensemble, variable, predicted) 
+
+forecast <- forecast %>%
   mutate(start_time = forecast_date) |> #start_time is today
   select(time, start_time, siteID, variable, ensemble, predicted)
 
@@ -165,7 +159,6 @@ write_csv(forecast, forecast_file)
 
 #Confirm that output file meets standard for Challenge
 neon4cast::forecast_output_validator(forecast_file)
-
 ```
 
 
