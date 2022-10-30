@@ -41,7 +41,7 @@ team_list <- list(list(individualName = list(givenName = "Abby",
 model_name = "Test"
 model_id = "theory_test"
 
-theme = c("phenology") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
+theme = c("aquatics") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 ```
 
 
