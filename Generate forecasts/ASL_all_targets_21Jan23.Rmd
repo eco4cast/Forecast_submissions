@@ -1,0 +1,391 @@
+---
+title: "Pull data"
+author: "Abby Lewis"
+date: "2022-09-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("remotes")
+#remotes::install_github("eco4cast/neon4cast")
+library(neon4cast)
+library(tidyverse)
+library(lubridate)
+library(tsibble)
+library(fable)
+#install.packages("rMR")
+library(rMR)
+source("download_target.R")
+```
+
+
+TO DO:
+Deal with weekly timesteps
+
+
+
+Using a neon4cast example found here: https://github.com/eco4cast/neon4cast-example
+One thing that is nice about this example is we can easily set it up to run automatically using code from Quinn
+
+Describe team for EFI submission
+```{r}
+#Step 0: Define team name, team members, and theme
+
+team_name <- "EFI Theory"
+
+team_list <- list(list(individualName = list(givenName = "Abby", 
+                                             surName = "Lewis"),
+                       organizationName = "Virginia Tech",
+                       electronicMailAddress = "aslewis@vt.edu")
+                  )
+
+model_name = "Test"
+model_id = "theory_test"
+
+theme = c("aquatics") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
+```
+
+
+That's it! Now run the next chunk to generate and visualize your forecast!
+```{R}
+#Step 1: Download latest target data and site description data
+
+target = download_target(theme)
+type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
+
+site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
+  filter(get(type)==1)
+
+
+#Step 2: Get drivers (currently noaa forecasts aren't included)
+
+dir.create("drivers", showWarnings = FALSE)
+
+forecast_date <- Sys.Date()
+noaa_date <- Sys.Date() - days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
+
+if("siteID" %in% colnames(target)){ #Sometimes the site is called site_id instead of siteID. Fixing here
+  target = target%>%
+    rename(site_id = siteID)
+}
+if("datetime" %in% colnames(target)){ #Sometimes the time column is instead labeled "datetime"
+  target = target%>%
+    rename(time = datetime)
+}
+sites <- unique(target$site_id) #List sites for this challenge
+
+# Step 2: Get meterological predictions as drivers
+df_past <- neon4cast::noaa_stage3()
+
+## Helper function: for each site, average over predicted 0h horizon ensembles to get 'historic values'
+noaa_mean_historical <- function(df_past, site, var) {
+  df_past |>
+    dplyr::filter(site_id == site,
+                  variable == var) |>
+    dplyr::rename(ensemble = parameter) |>
+    dplyr::select(datetime, prediction, ensemble) |>
+    dplyr::mutate(date = as_date(datetime)) |>
+    dplyr::group_by(date) |>
+    dplyr::summarize(air_temperature = mean(prediction, na.rm = TRUE),
+                     .groups = "drop") |>
+    dplyr::rename(datetime = date) |>
+    dplyr::mutate(air_temperature = air_temperature - 273.15) |>
+    dplyr::collect()
+}
+
+## Helper fn: get daily average temperature from each ensemble in future
+noaa_mean_forecast <- function(site, var, reference_date) {
+  endpoint = "data.ecoforecast.org"
+  bucket <- glue::glue("neon4cast-drivers/noaa/gefs-v12/stage1/0/{reference_date}")
+  s3 <- arrow::s3_bucket(bucket, endpoint_override = endpoint, anonymous = TRUE)
+  
+  # stage1 air temp is Celsius
+  arrow::open_dataset(s3) |>
+    dplyr::filter(site_id == site,
+                  datetime >= lubridate::as_datetime(forecast_date),
+                  variable == var) |>
+    dplyr::select(datetime, prediction, parameter) |>
+    dplyr::mutate(datetime = as_date(datetime)) |>
+    dplyr::group_by(datetime, parameter) |>
+    dplyr::summarize(air_temperature = mean(prediction), .groups = "drop") |>
+    dplyr::select(datetime, air_temperature, parameter) |>
+    dplyr::rename(ensemble = parameter) |>
+    dplyr::collect()
+  
+}
+
+# Step 2.5: We'll skip any site that doesn't have both temperature and oxygen
+sites <- target |> na.omit() |> distinct(site_id, variable) |> 
+  filter(variable %in% c("oxygen", "temperature")) |>
+  count(site_id) |> filter(n==2) |> pull(site_id)
+
+#Step 3.0: Define the forecasts model for a site
+forecast_site <- function(site) {
+  message(paste0("Running site: ", site))
+  
+  # Get site information for elevation
+  site_info <- site_data |> dplyr::filter(field_site_id == site)
+  
+  # historical temperatures
+  noaa_past_mean <- noaa_mean_historical(df_past, site, "air_temperature")
+  
+  # Merge in past NOAA data into the targets file, matching by date.
+  site_target <- target |>
+    dplyr::select(datetime, site_id, variable, observation) |>
+    dplyr::filter(variable %in% c("temperature", "oxygen"), 
+                  site_id == site) |>
+    tidyr::pivot_wider(names_from = "variable", values_from = "observation") |>
+    dplyr::left_join(noaa_past_mean, by = c("datetime"))
+  
+  rm(noaa_past_mean) # save RAM 
+  
+  # Fit linear model based o # n past data: water temperature = m * air temperature + b
+  fit <- lm(temperature ~ air_temperature, data = site_target)
+  
+  #  Get 30-day predicted temperature ensemble at the site
+  noaa_future <- noaa_mean_forecast(site, "TMP", noaa_date)
+  
+  # use the linear model (predict.lm) to forecast water temperature for each ensemble member
+  temperature <- 
+    noaa_future |> 
+    mutate(site_id = site,
+           prediction = predict(fit, tibble(air_temperature)),
+           variable = "temperature")
+  
+  # use forecasted water temperature to predict oxygen by assuming that oxygen is saturated.
+  forecasted_oxygen <- 
+    rMR::Eq.Ox.conc(temperature$prediction, 
+                    elevation.m = site_info$field_mean_elevation_m,
+                    bar.press = NULL,
+                    bar.units = NULL,
+                    out.DO.meas = "mg/L",
+                    salinity = 0,
+                    salinity.units = "pp.thou")
+  # stick bits together                  
+  oxygen <- 
+    noaa_future |> 
+    mutate(site_id = site,
+           prediction = forecasted_oxygen,
+           variable = "oxygen")
+  
+  forecast <- dplyr::bind_rows(temperature, oxygen)
+  
+  # Format results to EFI standard
+  forecast <- forecast |>
+    mutate(reference_datetime = forecast_date,
+           family = "ensemble",
+           model_id = model_id) |>
+    rename(parameter = ensemble) |>
+    select(model_id, datetime, reference_datetime,
+           site_id, family, parameter, variable, prediction)
+}
+
+### AND HERE WE GO! We're ready to start forecasting ### 
+
+## Test with a single site first!
+forecast <- forecast_site( sites[1] )
+
+#Visualize the ensemble predictions -- what do you think?
+forecast |> 
+  ggplot(aes(x = datetime, y = prediction, group = parameter)) +
+  geom_line(alpha=0.3) +
+  facet_wrap(~variable, scales = "free")
+
+
+#Step 3.0: Generate forecasts for each site
+
+# Get site information
+site_info <- site_data %>% filter(field_site_id %in% sites) 
+
+site_target <- target %>%
+  filter(siteID %in% sites)
+
+#noaa_future_site <- noaa_future |> 
+#  filter(site_id == sites[i])
+
+# use explicit NAs for gaps in timeseries
+blinded_target <- site_target %>% 
+  group_by(time, siteID, variable)%>%
+  summarize_all(mean, na.rm = T)%>%
+  as_tsibble(index="time", key=c("variable","siteID"))%>%
+  fill_gaps(.end = Sys.Date())
+
+if(type == "aquatics")           {vars = c("temperature","oxygen","chla")
+                                  horiz = 30
+                                  step = 1
+                                  }
+if(type == "ticks")              {vars = c("amblyomma_americanum")
+                                  horiz = 52 #52 weeks
+                                  step = 7
+                                  }
+if(type == "phenology")          {vars = c("gcc_90","rcc_90")
+                                  horiz = 30 
+                                  step = 1}
+if(type == "beetles")            {vars = c("abundance","richness")
+                                  horiz = 52
+                                  step = 7}
+if(type == "terrestrial_daily")  {vars = c("nee","le")
+                                  horiz = 30
+                                  step = 1}#need to make this flexible for 30 min challenge
+if(type == "terrestrial_30min")  {vars = c("nee","le")
+                                  horiz = 30
+                                  step = 1/24/2}
+
+# 2. Run through each via map
+# Requires a dataframe that has each of the variable in the RW_forecast function
+site_var_combinations <- expand.grid(site = unique(target$siteID),
+                                     var = unique(target$variable)) %>%
+  # assign the transformation depending on the variable. chla and oxygen get a log(x) transformation
+  mutate(transformation = ifelse(var %in% c('chla', 'oxygen','abundance','richness','amblyomma_americanum'), 'log', 'none')) %>%
+  mutate(boot_number = 200,
+         h = horiz,
+         bootstrap = T, 
+         verbose = T)
+
+# runs the RW forecast for each combination of variable and site_id
+RW_forecasts <- purrr::pmap_dfr(site_var_combinations, RW_daily_forecast) 
+?RW_daily_forecast
+
+# convert the output into EFI standard
+forecast <- RW_forecasts %>%
+  rename(ensemble = .rep,
+         predicted = .sim) %>%
+  # For the EFI challenge we only want the forecast for future
+  filter(time > Sys.Date()) %>%
+  group_by(siteID, variable) %>%
+  mutate(start_time = min(time) - lubridate::days(1)) %>%
+  select(time, start_time, siteID, ensemble, variable, predicted) 
+
+forecast <- forecast %>%
+  mutate(start_time = forecast_date) |> #start_time is today
+  select(time, start_time, siteID, variable, ensemble, predicted)
+
+#Visualize forecast.  Is it reasonable?
+forecast %>% 
+  ggplot(aes(x = time, y = predicted, group = ensemble)) +
+  geom_line() +
+  facet_grid(variable~siteID, scale ="free")
+
+#Forecast output file name in standards requires for Challenge.  
+# csv.gz means that it will be compressed
+dir.create("forecasts", showWarnings = FALSE)
+forecast_file <- paste0("./forecasts/",theme,"-",min(forecast$time),"-",team_name,".csv.gz")
+
+#Write csv to disk
+write_csv(forecast, forecast_file)
+
+#Confirm that output file meets standard for Challenge
+neon4cast::forecast_output_validator(forecast_file)
+```
+
+
+Submit!
+
+```{r}
+# Step 4: Generate metadata
+
+model_metadata = list(
+  forecast = list(
+    model_description = list(
+      forecast_model_id =  model_id, 
+      name = model_name, 
+      type = "empirical",  
+      repository = "https://github.com/abbylewis/EFI_Theory" 
+    ),
+    initial_conditions = list(
+      status = "absent"
+    ),
+    drivers = list(
+      status = "propagates",
+      complexity = 1, #Just temperature
+      propagation = list( 
+        type = "ensemble", 
+        size = 31) 
+    ),
+    parameters = list(
+      status = "absent"
+    ),
+    random_effects = list(
+      status = "absent"
+    ),
+    process_error = list(
+      status = "absent"
+    ),
+    obs_error = list(
+      status = "absent"
+    )
+  )
+)
+
+metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata)
+
+# Step 5: Submit forecast!
+
+
+neon4cast::submit(forecast_file = forecast_file, metadata = metadata_file, ask = FALSE)
+```
+
+
+
+
+
+Consider adding back in later (not currently working)
+
+
+Separating the code below because noaa forecast downloads weren't working (they are now!)
+```{r}
+df_past <- neon4cast::noaa_stage3()#This should be a function from neon4cast but looks like something got messed up. Will need to fix later
+neon4cast::noaa_stage1()
+df_future <- neon4cast::noaa_stage2() #Same as above
+
+data = neon4cast::download_noaa(sites)
+read.csv(data)
+path = download_forecast("phenology")
+list.files(paste0(path,"/downloaded_packages"))
+
+noaa_past <- df_past |> 
+  dplyr::filter(site_id %in% sites,
+                variable == "air_temperature") |> 
+  dplyr::collect()
+
+noaa_future <- df_future |> 
+  dplyr::filter(cycle == 0,
+                start_date == as.character(noaa_date),
+                time >= lubridate::as_datetime(forecast_date), 
+                variable == "air_temperature") |> 
+  dplyr::collect()
+
+# Step 2.4 Aggregate (to day) and convert units of drivers
+
+noaa_past_mean <- noaa_past %>% 
+  mutate(date = as_date(time)) %>% 
+  group_by(date, site_id) %>% 
+  summarize(air_temperature = mean(predicted, na.rm = TRUE), .groups = "drop") %>% 
+  rename(time = date) %>% 
+  mutate(air_temperature = air_temperature - 273.15)
+
+
+noaa_future <- noaa_future %>% 
+  mutate(time = as_date(time)) %>% 
+  group_by(time, site_id, ensemble) |> 
+  summarize(air_temperature = mean(predicted), .groups = "drop") |> 
+  mutate(air_temperature = air_temperature - 273.15) |> 
+  select(time, site_id, air_temperature, ensemble)
+
+#Step 2.5: Merge in past NOAA data into the targets file, matching by date.
+target <- target |> 
+  select(time, site_id, variable, observed) |> 
+  filter(variable %in% c("temperature", "oxygen")) |> 
+  pivot_wider(names_from = "variable", values_from = "observed")
+
+target <- left_join(target, noaa_past_mean, by = c("time","site_id"))
+
+ggplot(target, aes(x = temperature, y = air_temperature)) +
+  geom_point() +
+  labs(x = "NEON water temperature (C)", y = "NOAA air temperature (C)") +
+  facet_wrap(~site_id)
+
+```
+
+
