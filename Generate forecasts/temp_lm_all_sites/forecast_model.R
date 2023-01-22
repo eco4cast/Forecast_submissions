@@ -23,8 +23,8 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        electronicMailAddress = "aslewis@vt.edu")
 )
 
-model_id = "temp_lm"
-model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
+model_id = "temp_lm_all_sites"
+model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes. I am registered for all three
 model_types = c("terrestrial","aquatics","phenology") #Replace terrestrial daily and 30min with terrestrial
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
@@ -140,42 +140,40 @@ dev.off()
 
 
 #### Step 3.0: Define the forecasts model for a site
-forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable) {
-  message(paste0("Running site: ", site))
+forecast_all_sites <- function(target_variable, sites,noaa_past_mean,noaa_future_daily) {
+  
+  message(paste0("Running ",target_variable," at all sites"))
   
   # Get site information for elevation
-  site_info <- site_data |> dplyr::filter(field_site_id == site)
+  #site_info <- site_data |> dplyr::filter(field_site_id == site)
   
-  # Merge in past NOAA data into the targets file, matching by date.
+  # Merge in past NOAA data into the targets file, matching by date and site.
   site_target <- target |>
     dplyr::select(datetime, site_id, variable, observation) |>
     dplyr::filter(variable %in% c(target_variable), 
-                  site_id == site) |>
+                  site_id %in% sites) |> 
     tidyr::pivot_wider(names_from = "variable", values_from = "observation") |>
     dplyr::left_join(noaa_past_mean%>%
-                       filter(site_id == site), by = c("datetime", "site_id"))
+                       filter(site_id %in% sites), by = c("datetime", "site_id"))
   
-  if(!target_variable%in%names(site_target)){
-    message(paste0("No target observations at site ",site,". Skipping forecasts at this site."))
-    return()
-    
-  } else if(sum(!is.na(site_target$air_temperature)&!is.na(site_target[target_variable]))==0){
-    message(paste0("No historical air temp data that corresponds with target observations at site ",site,". Skipping forecasts at this site."))
+  if(sum(!is.na(site_target$air_temperature)&!is.na(site_target[target_variable]))==0){
+    message(paste0("No historical air temp data that corresponds with target observations. Skipping forecasts for this variable."))
     return()
     
   } else {
     # Fit linear model based on past data: water temperature = m * air temperature + b
-    fit <- lm(get(target_variable) ~ air_temperature*site_id, data = site_target)
+    fit <- lm(get(target_variable) ~ air_temperature+site_id, data = site_target)
+    good_sites = unique(site_target$site_id[!is.na(site_target$air_temperature)&!is.na(site_target[target_variable])])
     
     #  Get 30-day predicted temperature ensemble at the site
     noaa_future <- noaa_future_daily%>%
-      filter(site_id==site)
+      filter(site_id%in%sites)
     
     # use the linear model (predict.lm) to forecast water temperature for each ensemble member
     forecast <- 
       noaa_future |> 
-      mutate(site_id = site,
-             prediction = predict(fit, tibble(air_temperature)),
+      filter(site_id %in% good_sites) |>
+      mutate(prediction = predict(fit, tibble(air_temperature, site_id)),
              variable = target_variable)
     
     # Format results to EFI standard
@@ -186,14 +184,6 @@ forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable)
       select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
   }
-}
-
-#Quick function to repeat for all variables
-run_all_vars = function(var,sites,forecast_site,noaa_past_mean,noaa_future_daily){
-  
-  message(paste0("Running variable: ", var))
-  forecast <- map_dfr(sites,forecast_site,noaa_past_mean,noaa_future_daily,var)
-  
 }
 
 ### AND HERE WE GO! We're ready to start forecasting ### 
@@ -215,22 +205,23 @@ for (theme in model_themes) {
     filter(get(type)==1)
   sites = site_data$field_site_id
   
-  #Set target variables and timesteps
+  #Set target variables
   if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
   if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
   if(theme == "terrestrial_daily")  {vars = c("nee","le")}
 
-  ## Test with a single site first!
-  #forecast <- map_dfr(vars,run_all_vars,sites[23],forecast_site,noaa_past_mean,noaa_future_daily)
-  
-  #Visualize the ensemble predictions -- what do you think?
-  #forecast |> 
+  #Test with a single variable first
+  #forecast <- map_dfr(vars[1],forecast_all_sites,sites,noaa_past_mean,noaa_future_daily)
+  #Visualize at one site
+  #forecast_vis = forecast%>%
+  #  filter(site_id == "WOOD")
+  #forecast_vis |> 
   #  ggplot(aes(x = datetime, y = prediction, group = parameter)) +
   #  geom_line(alpha=0.3) +
   #  facet_wrap(~variable, scales = "free")
   
-  # Run all sites -- may be slow!
-  forecast <- map_dfr(vars,run_all_vars,sites,forecast_site,noaa_past_mean,noaa_future_daily)
+  # Run all variables -- may be slow!
+  forecast <- map_dfr(vars,forecast_all_sites,sites,noaa_past_mean,noaa_future_daily)
   
   #Forecast output file name in standards requires for Challenge.
   # csv.gz means that it will be compressed
@@ -244,5 +235,5 @@ for (theme in model_themes) {
   #metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
   
   # Step 5: Submit forecast!
-  #neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
+  neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
 }

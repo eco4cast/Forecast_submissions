@@ -215,7 +215,7 @@ for (theme in model_themes) {
     filter(get(type)==1)
   sites = site_data$field_site_id
   
-  #Set target variables and timesteps
+  #Set target variables
   if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
   if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
   if(theme == "terrestrial_daily")  {vars = c("nee","le")}
