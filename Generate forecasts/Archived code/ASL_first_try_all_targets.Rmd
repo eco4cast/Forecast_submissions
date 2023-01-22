@@ -16,7 +16,7 @@ library(tsibble)
 library(fable)
 #install.packages("rMR")
 library(rMR)
-source("download_target.R")
+source("../download_target.R")
 ```
 
 
@@ -41,7 +41,7 @@ team_list <- list(list(individualName = list(givenName = "Abby",
 model_name = "Test"
 model_id = "theory_test"
 
-theme = c("aquatics") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
+theme = c("beetles") #Define theme. Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 ```
 
 

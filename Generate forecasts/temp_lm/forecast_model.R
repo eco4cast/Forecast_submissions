@@ -1,3 +1,7 @@
+# temp_lm model
+# written by ASL, 21 Jan 2023
+
+
 #### Step 0: load packages
 
 library(tidyverse)
@@ -244,5 +248,5 @@ for (theme in model_themes) {
   #metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
   
   # Step 5: Submit forecast!
-  #neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
+  neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
 }

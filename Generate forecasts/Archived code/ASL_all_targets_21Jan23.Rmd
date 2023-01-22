@@ -20,13 +20,12 @@ library(arrow)
 source("download_target.R")
 ```
 
-NOTE: I have registered teams with this model for terrestrial daily, phenology, and aquatics
+NOTE: I have registered teams with the temp_lm model for terrestrial daily, phenology, and aquatics
 
 
 TO DO:
 Deal with weekly timesteps
 Set up for time series models
-Currently running every site individually. Re-format to forecast across all?
 
 
 

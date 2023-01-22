@@ -1,3 +1,8 @@
+# temp_lm_all_sites model
+# written by ASL, 21 Jan 2023
+
+
+
 #### Step 0: load packages
 
 library(tidyverse)
