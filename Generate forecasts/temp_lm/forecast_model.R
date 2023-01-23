@@ -239,6 +239,7 @@ for (theme in model_themes) {
   #Forecast output file name in standards requires for Challenge.
   # csv.gz means that it will be compressed
   file_date <- Sys.Date() #forecast$reference_datetime[1]
+  model_id = "temp_lm"
   forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
   
   #Write csv to disk
