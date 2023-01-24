@@ -28,5 +28,5 @@ jobs:
         run: Rscript ./Generate_forecasts/humidity_lm_all_sites/forecast_model.R
       - name: Run automatic prediction file (precip_lm)
         run: Rscript ./Generate_forecasts/precip_lm/forecast_model.R
-      - name: Run automatic prediction file (humidity_lm_all_sites)
+      - name: Run automatic prediction file (precip_lm_all_sites)
         run: Rscript ./Generate_forecasts/precip_lm_all_sites/forecast_model.R
