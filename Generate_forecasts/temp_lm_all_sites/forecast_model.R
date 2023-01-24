@@ -106,31 +106,8 @@ noaa_future_daily <- noaa_future |>
   select(datetime, site_id, air_temperature, parameter)
 
 # Load stage3 data. 
-#The bucket is somewhat differently organized here, necessitating a different structure. 
-#This will take a LONG TIME to load, especially if we are running all sites (I estimate 10 min on my computer)
-load_stage3 <- function(site,endpoint,variables){
-  message('run ', site)
-  use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage3/parquet/", site)
-  use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
-  parquet_file <- arrow::open_dataset(use_s3) |>
-    dplyr::collect() |>
-    dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
-                  variable %in% variables) #It would be more efficient to filter before collecting, but this is not running on my M1 mac
-}
-
-noaa_past <- map_dfr(all_sites, load_stage3,endpoint,variables)
-
-# Format historical met data
-noaa_past_mean <- noaa_past |> 
-  na.omit() |> 
-  mutate(datetime = lubridate::as_date(datetime)) |> 
-  group_by(datetime, site_id, variable) |> 
-  summarize(prediction = mean(prediction, na.rm = TRUE), .groups = "drop") |> 
-  pivot_wider(names_from = variable, values_from = prediction) |> 
-  # convert air temp to C
-  mutate(air_temperature = air_temperature - 273.15)
-
-rm(noaa_past) #Forget this huge file
+noaa_past_mean <- read.csv("./Generate_forecasts/noaa_downloads/past_temp.csv")|> 
+  mutate(datetime = lubridate::as_date(datetime))
 
 # Plot met
 jpeg("met_forecasts.jpg",width = 10, height = 10, units = "in", res = 300)
@@ -243,3 +220,4 @@ for (theme in model_themes) {
   # Step 5: Submit forecast!
   neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
 }
+

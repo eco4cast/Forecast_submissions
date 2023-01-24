@@ -123,22 +123,16 @@ load_stage3 <- function(site,endpoint,variables){
   parquet_file <- arrow::open_dataset(use_s3) |>
     dplyr::collect() |>
     dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
-                  variable %in% variables) #It would be more efficient to filter before collecting, but this is not running on my M1 mac
+                  variable %in% variables) |> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
+    na.omit() |> 
+    mutate(datetime = lubridate::as_date(datetime)) |> 
+    group_by(datetime, site_id, variable) |> 
+    summarize(prediction = mean(prediction, na.rm = TRUE), .groups = "drop") |> 
+    pivot_wider(names_from = variable, values_from = prediction)
 }
 
-noaa_past <- map_dfr(all_sites, load_stage3,endpoint,variables)
-
-# Format historical met data
-noaa_past_mean <- noaa_past |> 
-  na.omit() |> 
-  mutate(datetime = lubridate::as_date(datetime)) |> 
-  group_by(datetime, site_id, variable) |> 
-  summarize(prediction = mean(prediction, na.rm = TRUE), .groups = "drop") |> 
-  pivot_wider(names_from = variable, values_from = prediction)# |> 
-  # convert air temp to C
-  #mutate(air_temperature = air_temperature - 273.15)
-
-rm(noaa_past) #Forget this huge file
+noaa_past_mean <- map_dfr(all_sites, load_stage3,endpoint,variables)
+write.csv(noaa_past_mean,"./Generate_forecasts/noaa_downloads/past_humidity.csv",row.names = F) #Save this so I don't have to rerun in precip_lm_all_sites
 
 # Plot met
 jpeg("met_forecasts.jpg",width = 10, height = 10, units = "in", res = 300)
