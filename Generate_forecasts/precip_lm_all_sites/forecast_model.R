@@ -112,7 +112,7 @@ noaa_future_daily <- noaa_future |>
   pivot_wider(names_from = variable, values_from = prediction) |>
   # convert to Celsius
   #mutate(air_temperature = air_temperature - 273.15) |> 
-  select(datetime, site_id, precipitation_, parameter)
+  select(datetime, site_id, precipitation_flux, parameter)
 
 # Load stage3 data. 
 noaa_past_mean <- read.csv("./Generate_forecasts/noaa_downloads/past_precip.csv")|> 
@@ -120,7 +120,7 @@ noaa_past_mean <- read.csv("./Generate_forecasts/noaa_downloads/past_precip.csv"
 
 # Plot met
 jpeg("met_forecasts.jpg",width = 10, height = 10, units = "in", res = 300)
-ggplot(noaa_future_daily, aes(x=datetime, y=precipitation_)) +
+ggplot(noaa_future_daily, aes(x=datetime, y=precipitation_flux)) +
   geom_line(aes(group = parameter), alpha = 0.4)+
   geom_line(data = noaa_past_mean, colour = 'darkblue') +
   coord_cartesian(xlim = c(noaa_date - lubridate::days(60),
@@ -147,14 +147,14 @@ forecast_all_sites <- function(target_variable, sites,noaa_past_mean,noaa_future
     dplyr::left_join(noaa_past_mean%>%
                        filter(site_id %in% sites), by = c("datetime", "site_id"))
   
-  if(sum(!is.na(site_target$precipitation_)&!is.na(site_target[target_variable]))==0){
+  if(sum(!is.na(site_target$precipitation_flux)&!is.na(site_target[target_variable]))==0){
     message(paste0("No historical precip data that corresponds with target observations. Skipping forecasts for this variable."))
     return()
     
   } else {
     # Fit linear model based on past data: target variable = m * precip + b
-    fit <- lm(get(target_variable) ~ precipitation_+site_id, data = site_target)
-    good_sites = unique(site_target$site_id[!is.na(site_target$precipitation_)&!is.na(site_target[target_variable])])
+    fit <- lm(get(target_variable) ~ precipitation_flux+site_id, data = site_target)
+    good_sites = unique(site_target$site_id[!is.na(site_target$precipitation_flux)&!is.na(site_target[target_variable])])
     
     #  Get 30-day predicted precip ensemble at the site
     noaa_future <- noaa_future_daily%>%
@@ -164,7 +164,7 @@ forecast_all_sites <- function(target_variable, sites,noaa_past_mean,noaa_future
     forecast <- 
       noaa_future |> 
       filter(site_id %in% good_sites) |>
-      mutate(prediction = predict(fit, tibble(precipitation_, site_id)),
+      mutate(prediction = predict(fit, tibble(precipitation_flux, site_id)),
              variable = target_variable)
     
     # Format results to EFI standard
