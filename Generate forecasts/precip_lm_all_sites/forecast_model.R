@@ -175,7 +175,7 @@ forecast_all_sites <- function(target_variable, sites,noaa_past_mean,noaa_future
     return()
     
   } else {
-    # Fit linear model based on past data: water temperature = m * precip + b
+    # Fit linear model based on past data: target variable = m * precip + b
     fit <- lm(get(target_variable) ~ precipitation_+site_id, data = site_target)
     good_sites = unique(site_target$site_id[!is.na(site_target$precipitation_)&!is.na(site_target[target_variable])])
     
