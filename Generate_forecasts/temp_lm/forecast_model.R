@@ -1,4 +1,4 @@
-# temp_lm model
+# tg_temp_lm model
 # written by ASL, 21 Jan 2023
 
 
@@ -27,7 +27,7 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        electronicMailAddress = "aslewis@vt.edu")
 )
 
-model_id = "temp_lm"
+model_id = "tg_temp_lm"
 model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
 model_types = c("terrestrial","aquatics","phenology") #Replace terrestrial daily and 30min with terrestrial
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
@@ -125,7 +125,7 @@ load_stage3 <- function(site,endpoint,variables){
 }
 
 noaa_past_mean <- map_dfr(all_sites, load_stage3,endpoint,variables)
-write.csv(noaa_past_mean,"./Generate_forecasts/noaa_downloads/past_temp.csv",row.names = F) #Save this so I don't have to rerun in temp_lm_all_sites
+write.csv(noaa_past_mean,"./Generate_forecasts/noaa_downloads/past_temp.csv",row.names = F) #Save this so I don't have to rerun in tg_temp_lm_all_sites
 
 # Plot met
 jpeg("met_forecasts.jpg",width = 10, height = 10, units = "in", res = 300)
@@ -235,7 +235,7 @@ for (theme in model_themes) {
   #Forecast output file name in standards requires for Challenge.
   # csv.gz means that it will be compressed
   file_date <- Sys.Date() #forecast$reference_datetime[1]
-  model_id = "temp_lm"
+  model_id = "tg_temp_lm"
   forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
   
   #Write csv to disk

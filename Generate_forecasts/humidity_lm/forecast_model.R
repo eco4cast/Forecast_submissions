@@ -1,4 +1,4 @@
-# humidity_lm model
+# tg_humidity_lm model
 # written by ASL, 21 Jan 2023
 
 
@@ -27,7 +27,7 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        electronicMailAddress = "aslewis@vt.edu")
 )
 
-model_id = "humidity_lm"
+model_id = "tg_humidity_lm"
 model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
 model_types = c("terrestrial","aquatics","phenology") #Replace terrestrial daily and 30min with terrestrial
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
@@ -242,7 +242,7 @@ for (theme in model_themes) {
   #Forecast output file name in standards requires for Challenge.
   # csv.gz means that it will be compressed
   file_date <- Sys.Date() #forecast$reference_datetime[1]
-  model_id = "humidity_lm"
+  model_id = "tg_humidity_lm"
   forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
   
   #Write csv to disk
