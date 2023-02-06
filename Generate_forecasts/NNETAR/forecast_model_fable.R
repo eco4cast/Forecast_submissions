@@ -1,4 +1,4 @@
-# tg_arima model
+# tg_nnetar model
 # written by ASL, 21 Jan 2023
 
 
@@ -28,7 +28,7 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        electronicMailAddress = "aslewis@vt.edu")
 )
 
-model_id = "tg_arima"
+model_id = "tg_nnetar"
 model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes. I am registered for all three
 model_types = c("terrestrial","aquatics","phenology","beetles","ticks") #Replace terrestrial daily and 30min with terrestrial
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
@@ -165,7 +165,7 @@ for (theme in model_themes) {
     #Forecast output file name in standards requires for Challenge.
     # csv.gz means that it will be compressed
     file_date <- Sys.Date() #forecast$reference_datetime[1]
-    model_id = "tg_temp_lm"
+    model_id = "tg_nnetar"
     forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
     
     #Write csv to disk
