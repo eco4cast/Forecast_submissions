@@ -108,7 +108,11 @@ forecast_site <- function(site, target_variable, horiz,step) {
     }
     
     # Fit arima model
-    fit = auto.arima(site_target[target_variable], lambda = "auto")
+    if(sum(site_target[target_variable]<0,na.rm=T)>0){#If there are any negative values, don't consider transformation
+      fit = auto.arima(site_target[target_variable])
+    } else {
+      fit = auto.arima(site_target[target_variable], lambda = "auto")
+    }
     
     # use the model to forecast target variable
     forecast_raw <- as.data.frame(forecast(fit,h=h))%>%
