@@ -108,7 +108,7 @@ forecast_site <- function(site, target_variable, horiz,step) {
     }
     
     # Fit arima model
-    fit = auto.arima(site_target[target_variable])
+    fit = auto.arima(site_target[target_variable], lambda = "auto")
     
     # use the model to forecast target variable
     forecast_raw <- as.data.frame(forecast(fit,h=h))%>%
