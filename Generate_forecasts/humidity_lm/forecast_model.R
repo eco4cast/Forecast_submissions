@@ -1,4 +1,4 @@
-# humidity_lm model
+# tg_humidity_lm model
 # written by ASL, 21 Jan 2023
 
 
@@ -27,9 +27,9 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        electronicMailAddress = "aslewis@vt.edu")
 )
 
-model_id = "humidity_lm"
-model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
-model_types = c("terrestrial","aquatics","phenology") #Replace terrestrial daily and 30min with terrestrial
+model_id = "tg_humidity_lm"
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes
+model_types = c("terrestrial","aquatics","phenology","beetles","ticks") #Replace terrestrial daily and 30min with terrestrial
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
 #Create model metadata
@@ -205,52 +205,60 @@ run_all_vars = function(var,sites,forecast_site,noaa_past_mean,noaa_future_daily
 
 ### AND HERE WE GO! We're ready to start forecasting ### 
 for (theme in model_themes) {
-  #Step 1: Download latest target data and site description data
-  target = download_target(theme)
-  type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
+  if(!theme%in%c("beetles","ticks") | wday(Sys.Date(), label=TRUE)=="Sun"){ #beetles and ticks only want forecasts every Sunday
+    #Step 1: Download latest target data and site description data
+    target = download_target(theme)
+    type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
+    
+    if("siteID" %in% colnames(target)){ #Sometimes the site is called siteID instead of site_id. Fixing here
+      target = target%>%
+        rename(site_id = siteID)
+    }
+    if("time" %in% colnames(target)){ #Sometimes the time column is instead labeled "datetime"
+      target = target%>%
+        rename(datetime = time)
+    }
+    
+    site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
+      filter(get(type)==1)
+    sites = site_data$field_site_id
+    
+    #Set target variables
+    if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
+    if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
+    if(theme == "terrestrial_daily")  {vars = c("nee","le")}
+    if(theme == "beetles")            {vars = c("abundance","richness")}
+    if(theme == "ticks")              {vars = c("amblyomma_americanum")}
   
-  if("siteID" %in% colnames(target)){ #Sometimes the site is called siteID instead of site_id. Fixing here
-    target = target%>%
-      rename(site_id = siteID)
+    ## Test with a single site first!
+    #forecast <- map_dfr(vars,run_all_vars,sites[23],forecast_site,noaa_past_mean,noaa_future_daily)
+    
+    #Visualize the ensemble predictions -- what do you think?
+    #forecast |> 
+    #  ggplot(aes(x = datetime, y = prediction, group = parameter)) +
+    #  geom_line(alpha=0.3) +
+    #  facet_wrap(~variable, scales = "free")
+    
+    # Run all sites -- may be slow!
+    forecast <- map_dfr(vars,run_all_vars,sites,forecast_site,noaa_past_mean,noaa_future_daily)
+    
+    if(theme %in% c("beetles","ticks")){
+      forecast = forecast%>% filter(wday(datetime, label=TRUE)=="Mon") #The beetles and ticks challenges only want weekly forecasts
+    }
+    
+    #Forecast output file name in standards requires for Challenge.
+    # csv.gz means that it will be compressed
+    file_date <- Sys.Date() #forecast$reference_datetime[1]
+    model_id = "tg_humidity_lm"
+    forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
+    
+    #Write csv to disk
+    write_csv(forecast, forecast_file)
+    
+    #Generate metadata
+    #metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
+    
+    # Step 5: Submit forecast!
+    neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
   }
-  if("time" %in% colnames(target)){ #Sometimes the time column is instead labeled "datetime"
-    target = target%>%
-      rename(datetime = time)
-  }
-  
-  site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
-    filter(get(type)==1)
-  sites = site_data$field_site_id
-  
-  #Set target variables
-  if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
-  if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
-  if(theme == "terrestrial_daily")  {vars = c("nee","le")}
-
-  ## Test with a single site first!
-  #forecast <- map_dfr(vars,run_all_vars,sites[23],forecast_site,noaa_past_mean,noaa_future_daily)
-  
-  #Visualize the ensemble predictions -- what do you think?
-  #forecast |> 
-  #  ggplot(aes(x = datetime, y = prediction, group = parameter)) +
-  #  geom_line(alpha=0.3) +
-  #  facet_wrap(~variable, scales = "free")
-  
-  # Run all sites -- may be slow!
-  forecast <- map_dfr(vars,run_all_vars,sites,forecast_site,noaa_past_mean,noaa_future_daily)
-  
-  #Forecast output file name in standards requires for Challenge.
-  # csv.gz means that it will be compressed
-  file_date <- Sys.Date() #forecast$reference_datetime[1]
-  model_id = "humidity_lm"
-  forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
-  
-  #Write csv to disk
-  write_csv(forecast, forecast_file)
-  
-  #Generate metadata
-  #metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
-  
-  # Step 5: Submit forecast!
-  neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
 }
