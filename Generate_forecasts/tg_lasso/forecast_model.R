@@ -1,5 +1,4 @@
-# lasso model - regularization parameter tuned on all target historical data and final fit to forecast 
-# written by CJR, 24 Jan 2023
+# lasso model - regularization parameter tuned on all target historical data (date of tuning on file name in tg_lasso/trained_models/) and final fit to forecast 
 # MAKE SURE TO CHANGE METADATA ONCE NUMBER OF VARIABLES SELECTED
 
 
@@ -38,8 +37,8 @@ team_list <- list(list(individualName = list(givenName = "Abby",
 )
 
 model_id = "lasso"
-model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
-model_types = c("terrestrial","aquatics","phenology") #Replace terrestrial daily and 30min with terrestrial
+model_themes = c("terrestrial_daily","aquatics","phenology") 
+model_types = c("terrestrial","aquatics","phenology") 
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
 #Create model metadata
@@ -129,10 +128,6 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   # Get site information for elevation
   site_info <- site_data |> dplyr::filter(field_site_id == site)
   
-  site <- "KING"
-  target_variable <- "oxygen"
-  theme <- "aquatics"
-  
   mod_file <- list.files(here("EFI_Theory/Generate_forecasts/tg_lasso/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
   file.exists(here(paste0("EFI_Theory/Generate_forecasts/tg_lasso/trained_models/",mod_file)))
   
@@ -196,21 +191,13 @@ for (theme in model_themes) {
   if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
   if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
   if(theme == "terrestrial_daily")  {vars = c("nee","le")}
-  if(theme == "beetles")            {vars = c("abundance","richness")}
-  if(theme == "ticks")              {vars = c("amblyomma_americanum")}
+  #if(theme == "beetles")            {vars = c("abundance","richness")}
+  #if(theme == "ticks")              {vars = c("amblyomma_americanum")}
 
-  ## Test with a single site first!
+  ## Generate forecast
   forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site),noaa_future_daily)
   
-  #Visualize the ensemble predictions
-  forecast |> 
-    ggplot(aes(x = datetime, y = prediction, group = parameter)) +
-    geom_line(alpha=0.3) +
-    facet_wrap(~variable, scales = "free")+
-    annotate("text", x = as_date("2023-03-20"), y = 11, label = site)+
-    NULL
-  
-  
+
   #Forecast output file name in standards requires for Challenge.
   # csv.gz means that it will be compressed
   file_date <- Sys.Date() #forecast$reference_datetime[1]
@@ -222,5 +209,5 @@ for (theme in model_themes) {
   
   
   # Step 5: Submit forecast!
-  #neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
+  neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
 }
