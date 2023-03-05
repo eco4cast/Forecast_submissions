@@ -172,7 +172,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
 run_all_vars = function(var,sites,forecast_site,noaa_future_daily){
   
   message(paste0("Running variable: ", var))
-  forecast <- map_dfr(sites,possibly(forecast_site),noaa_future_daily,var)
+  forecast <- map_dfr(sites,possibly(forecast_site, otherwise = NULL),noaa_future_daily,var)
   
 }
 
@@ -195,7 +195,7 @@ for (theme in model_themes) {
   #if(theme == "ticks")              {vars = c("amblyomma_americanum")}
 
   ## Generate forecast
-  forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site),noaa_future_daily)
+  forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site, otherwise = NULL),noaa_future_daily)
   
 
   #Forecast output file name in standards requires for Challenge.
