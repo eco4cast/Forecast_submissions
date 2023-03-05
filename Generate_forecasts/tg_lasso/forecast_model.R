@@ -16,6 +16,7 @@ library(tsibble)
 library(fable)
 library(arrow)
 library(bundle)
+library(glmnet)
 here::i_am("EFI_Theory/Generate_forecasts/tg_lasso/forecast_model.R")
 source(here("EFI_Theory/download_target.R"))
 
@@ -172,10 +173,9 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
 run_all_vars = function(var,sites,forecast_site,noaa_future_daily){
   
   message(paste0("Running variable: ", var))
-  forecast <- map_dfr(sites,possibly(forecast_site, otherwise = NULL),noaa_future_daily,var)
+  forecast <- map_dfr(sites,possibly(forecast_site, otherwise = data.frame(prediction = NA_real_)),noaa_future_daily,var)
   
 }
-
 
 
 for (theme in model_themes) {
@@ -195,7 +195,8 @@ for (theme in model_themes) {
   #if(theme == "ticks")              {vars = c("amblyomma_americanum")}
 
   ## Generate forecast
-  forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site, otherwise = NULL),noaa_future_daily)
+  forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site, otherwise = data.frame(prediction = NA_real_)),noaa_future_daily)|>
+    filter(!is.na(prediction))
   
 
   #Forecast output file name in standards requires for Challenge.
