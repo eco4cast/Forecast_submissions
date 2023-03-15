@@ -125,13 +125,13 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     tune_randfor <- rand_forest(
       mtry = tune(),
-      trees = 20, #SET LOW FOR TESTING - trees 500/
+      trees = 500,
       min_n = tune()) |>
       set_mode("regression") %>%
       set_engine("ranger", importance = "impurity") 
     
     #k-fold cross-validation
-    randfor_resamp <- vfold_cv(site_target, v = 5, repeats = 1) #SET LOW FOR TESTING repeats = 5/ define k-fold cross validation procedure 
+    randfor_resamp <- vfold_cv(site_target, v = 10, repeats = 5)# define k-fold cross validation procedure 
     ## Assemble workflow and tune
     wf <- workflow() %>%
       add_recipe(rec_base)
