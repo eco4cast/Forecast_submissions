@@ -3,11 +3,13 @@
 
 #### Step 1: Load libraries
 library(here)
+library(ranger) #needed for random forest implementation
+library(doParallel)
 library(tidyverse)
 library(tidymodels)
+library(vip)
 library(butcher)
 library(bundle)
-library(butcher)
 library(neon4cast)
 library(lubridate)
 library(rMR)
@@ -22,8 +24,8 @@ here::i_am("EFI_Theory/Generate_forecasts/tg_randfor/train_model.R")
 source(here("EFI_Theory/download_target.R"))
 
 # Set model types
-model_themes = c("aquatics") #SET FOR TESTING
-model_types = c("terrestrial","aquatics","phenology")
+model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
+model_types = c("terrestrial","aquatics","phenology") 
 
 
 #### Step 2: Get NOAA driver data
@@ -123,13 +125,13 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     tune_randfor <- rand_forest(
       mtry = tune(),
-      trees = 500, #trees 500/
+      trees = 20, #SET LOW FOR TESTING - trees 500/
       min_n = tune()) |>
       set_mode("regression") %>%
       set_engine("ranger", importance = "impurity") 
     
     #k-fold cross-validation
-    randfor_resamp <- vfold_cv(site_target, v = 10, repeats = 5) #define k-fold cross validation procedure 
+    randfor_resamp <- vfold_cv(site_target, v = 5, repeats = 1) #SET LOW FOR TESTING repeats = 5/ define k-fold cross validation procedure 
     ## Assemble workflow and tune
     wf <- workflow() %>%
       add_recipe(rec_base)
@@ -137,7 +139,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     #Tune models
     #If running in parallel  
     library(doParallel)
-    cl <- makePSOCKcluster(3) #SET LOW FOR TESTING
+    cl <- makePSOCKcluster(14) #SET LOW FOR TESTING
     registerDoParallel(cl) 
     randfor_grid <- tune_grid(
       wf %>% add_model(tune_randfor),
@@ -157,10 +159,15 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     final_fit <- fit(final_mod, site_target)
     
+    vip <- final_fit|>extract_fit_parsnip()|>vip()|>pluck("data")|>
+      pivot_wider(names_from = "Variable", values_from = "Importance", names_prefix = "importance_")
+    
+    
     final_preds <- predict(final_fit, site_target)|>
       bind_cols(site_target)
     
     final_rmse<-rmse(final_preds, estimate = .pred, truth = {{target_variable}})
+    #try to extract fit and write to tibble variable importance as columns bind_cols
     
     #save model fit in minimal form
     res_bundle <-
@@ -168,8 +175,10 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       butcher() %>% 
       bundle()
     
+    
     saveRDS(res_bundle, here(paste0("EFI_Theory/Generate_forecasts/tg_randfor/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-    tibble(theme = theme, site = site, target_variable = target_variable, rmse = final_rmse$.estimate, mtry = best_mod$mtry, min_n = best_mod$min_n)
+    tibble(theme = theme, site = site, target_variable = target_variable, rmse = final_rmse$.estimate, mtry = best_mod$mtry, min_n = best_mod$min_n)|>
+      bind_cols(vip)
     
   }
 }
@@ -203,8 +212,7 @@ for (theme in model_themes) {
   if(theme == "ticks")              {vars = c("amblyomma_americanum")}
   
   site_var_combos <- expand_grid(vars, sites)|>
-    rename(site = "sites", target_variable = "vars")|>
-    filter(site == "KING", target_variable == "oxygen") #SET FOR TESING
+    rename(site = "sites", target_variable = "vars")
   
   mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, ~train_site(site = .x, target_variable = .y, noaa_past_mean = noaa_past_mean))|>
     compact()|>
@@ -217,3 +225,4 @@ for (theme in model_themes) {
 mod_sums_all <- syms(apropos("_mod_summaries"))|>
   map_dfr(~eval(.)|>bind_rows())|>
   write_csv(here("EFI_Theory/Generate_forecasts/tg_randfor/model_training_summaries.csv"))
+

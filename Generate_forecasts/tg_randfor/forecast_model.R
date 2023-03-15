@@ -15,7 +15,7 @@ library(tsibble)
 library(fable)
 library(arrow)
 library(bundle)
-library(glmnet)
+library(ranger)
 here::i_am("EFI_Theory/Generate_forecasts/tg_lasso/forecast_model.R")
 source(here("EFI_Theory/download_target.R"))
 source(here("EFI_Theory/ignore_sigpipe.R")) #might fail locally
