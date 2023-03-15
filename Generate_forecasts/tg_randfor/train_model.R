@@ -114,6 +114,9 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     # Tune and fit lasso model - making use of tidymodels
     site_target<-site_target|>
       drop_na()
+    
+    n_folds <- ifelse(nrow(site_target)<25, 5, 10) #sets cross folds lower if number of complete obs is low
+    
     #Recipe for training models
     rec_base <- recipe(site_target)|>
       step_rm(c("datetime", "site_id"))|>
@@ -125,13 +128,13 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     tune_randfor <- rand_forest(
       mtry = tune(),
-      trees = 500,
+      trees = 50, # SET LOW FOR TESTING
       min_n = tune()) |>
       set_mode("regression") %>%
       set_engine("ranger", importance = "impurity") 
     
     #k-fold cross-validation
-    randfor_resamp <- vfold_cv(site_target, v = 10, repeats = 5)# define k-fold cross validation procedure 
+    randfor_resamp <- vfold_cv(site_target, v = n_folds, repeats = 5)# SET LOW FOR TESTING define k-fold cross validation procedure 
     ## Assemble workflow and tune
     wf <- workflow() %>%
       add_recipe(rec_base)
@@ -139,12 +142,13 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     #Tune models
     #If running in parallel  
     library(doParallel)
-    cl <- makePSOCKcluster(14) #SET LOW FOR TESTING
+    cl <- makePSOCKcluster(3) #SET LOW FOR TESTING
     registerDoParallel(cl) 
-    randfor_grid <- tune_grid(
+    randfor_grid <- 
+      tune_grid(
       wf %>% add_model(tune_randfor),
       resamples = randfor_resamp,
-      grid = 20
+      grid = 5 #SET LOW FOR TESTING
     )
     
     ## Select best model via RMSE
@@ -177,7 +181,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     
     saveRDS(res_bundle, here(paste0("EFI_Theory/Generate_forecasts/tg_randfor/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-    tibble(theme = theme, site = site, target_variable = target_variable, rmse = final_rmse$.estimate, mtry = best_mod$mtry, min_n = best_mod$min_n)|>
+    tibble(theme = theme, site = site, n_obs = nrow(site_target), n_vfolds = n_folds, target_variable = target_variable, rmse = final_rmse$.estimate, mtry = best_mod$mtry, min_n = best_mod$min_n)|>
       bind_cols(vip)
     
   }
@@ -214,7 +218,8 @@ for (theme in model_themes) {
   site_var_combos <- expand_grid(vars, sites)|>
     rename(site = "sites", target_variable = "vars")
   
-  mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, ~train_site(site = .x, target_variable = .y, noaa_past_mean = noaa_past_mean))|>
+  mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, ~
+    train_site(site = .x, target_variable = .y, noaa_past_mean = noaa_past_mean))|>
     compact()|>
     list_rbind()
   
