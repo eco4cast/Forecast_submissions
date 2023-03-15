@@ -128,7 +128,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     tune_randfor <- rand_forest(
       mtry = tune(),
-      trees = 50, # SET LOW FOR TESTING
+      trees = 500,
       min_n = tune()) |>
       set_mode("regression") %>%
       set_engine("ranger", importance = "impurity") 
@@ -142,13 +142,13 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     #Tune models
     #If running in parallel  
     library(doParallel)
-    cl <- makePSOCKcluster(3) #SET LOW FOR TESTING
+    cl <- makePSOCKcluster(14) #SET 
     registerDoParallel(cl) 
     randfor_grid <- 
       tune_grid(
       wf %>% add_model(tune_randfor),
       resamples = randfor_resamp,
-      grid = 5 #SET LOW FOR TESTING
+      grid = 20 #SET LOW FOR TESTING
     )
     
     ## Select best model via RMSE
