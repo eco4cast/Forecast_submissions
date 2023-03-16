@@ -28,44 +28,9 @@ team_list <- list(list(individualName = list(givenName = "Abby",
 )
 
 model_id = "tg_temp_lm"
-model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #Run model across all themes, except terrestrial 30min (not currently configured)
 model_types = c("terrestrial","aquatics","phenology","beetles","ticks") #Replace terrestrial daily and 30min with terrestrial
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
-
-#Create model metadata
-model_metadata = list(
-  forecast = list(
-    model_description = list(
-      forecast_model_id =  model_id, 
-      type = "empirical",  
-      repository = "https://github.com/abbylewis/EFI_Theory" 
-    ),
-    initial_conditions = list(
-      status = "absent"
-    ),
-    drivers = list(
-      status = "propagates",
-      complexity = 1, #Just temperature
-      propagation = list( 
-        type = "ensemble", 
-        size = 31) 
-    ),
-    parameters = list(
-      status = "absent"
-    ),
-    random_effects = list(
-      status = "absent"
-    ),
-    process_error = list(
-      status = "absent"
-    ),
-    obs_error = list(
-      status = "absent"
-    )
-  )
-)
-#metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
-
 
 
 #### Step 2: Get NOAA driver data
@@ -125,7 +90,7 @@ load_stage3 <- function(site,endpoint,variables){
 }
 
 noaa_past_mean <- map_dfr(all_sites, load_stage3,endpoint,variables)
-write.csv(noaa_past_mean,"./Generate_forecasts/noaa_downloads/past_temp.csv",row.names = F) #Save this so I don't have to rerun in tg_temp_lm_all_sites
+write.csv(noaa_past_mean,"./Generate_forecasts/noaa_downloads/past_temp.csv",row.names = F) #Save this so I don't have to rerun met downloads for tg_temp_lm_all_sites
 
 # Plot met
 jpeg("met_forecasts.jpg",width = 10, height = 10, units = "in", res = 300)
@@ -139,12 +104,12 @@ dev.off()
 
 
 
-#### Step 3.0: Define the forecasts model for a site
+#### Step 3.0: Define the forecast model for a site
 forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable) {
   message(paste0("Running site: ", site))
   
   # Get site information for elevation
-  site_info <- site_data |> dplyr::filter(field_site_id == site)
+  site_info <- site_data |> dplyr::filter(field_site_id == site) #not currently using, but may be relevant to other models
   
   # Merge in past NOAA data into the targets file, matching by date.
   site_target <- target |>
@@ -165,7 +130,7 @@ forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable)
     
   } else {
     # Fit linear model based on past data: water temperature = m * air temperature + b
-    fit <- lm(get(target_variable) ~ air_temperature, data = site_target)
+    fit <- lm(get(target_variable) ~ air_temperature, data = site_target) #THIS IS THE MODEL
     
     #  Get 30-day predicted temperature ensemble at the site
     noaa_future <- noaa_future_daily%>%
@@ -175,7 +140,7 @@ forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable)
     forecast <- 
       noaa_future |> 
       mutate(site_id = site,
-             prediction = predict(fit, tibble(air_temperature)),
+             prediction = predict(fit, tibble(air_temperature)), #THIS IS THE FORECAST STEP
              variable = target_variable)
     
     # Format results to EFI standard
