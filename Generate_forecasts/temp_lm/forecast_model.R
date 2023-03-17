@@ -136,7 +136,7 @@ forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable)
     noaa_future <- noaa_future_daily%>%
       filter(site_id==site)
     
-    # use the linear model (predict.lm) to forecast water temperature for each ensemble member
+    # use the linear model (predict.lm) to forecast target variable for each ensemble member
     forecast <- 
       noaa_future |> 
       mutate(site_id = site,

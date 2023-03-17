@@ -78,7 +78,7 @@ forecast_site <- function(site, target_variable, horiz,step) {
       h = as.numeric(Sys.Date()-max(site_target$datetime)+horiz)
     }
     
-    # Fit arima model
+    # Fit NNETAR model
     fit <- site_target %>%
       fabletools::model(model = fable::NNETAR(observation))
     
