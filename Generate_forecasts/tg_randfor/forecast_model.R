@@ -16,9 +16,9 @@ library(fable)
 library(arrow)
 library(bundle)
 library(ranger)
-here::i_am("EFI_Theory/Generate_forecasts/tg_randfor/forecast_model.R")
-source(here("EFI_Theory/download_target.R"))
-source(here("EFI_Theory/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
+here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor/forecast_model.R")
+source(here("Forecast_submissions/download_target.R"))
+source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
 
 
 
@@ -48,7 +48,7 @@ model_metadata = list(
     model_description = list(
       forecast_model_id =  model_id, 
       type = "empirical",  
-      repository = "https://github.com/abbylewis/EFI_Theory" 
+      repository = "https://github.com/EFI-Theory/Forecast_submissions" 
     ),
     initial_conditions = list(
       status = "absent"
@@ -129,9 +129,9 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   # Get site information for elevation
   site_info <- site_data |> dplyr::filter(field_site_id == site)
   
-  mod_file <- list.files(here("EFI_Theory/Generate_forecasts/tg_randfor/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
+  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
   
-  if(!file.exists(here(paste0("EFI_Theory/Generate_forecasts/tg_randfor/trained_models/",mod_file)))){
+  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor/trained_models/",mod_file)))){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
     return()
     
@@ -145,7 +145,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   #generate predictions with trained model
 
     
-    mod_fit <- readRDS(here(paste0("EFI_Theory/Generate_forecasts/tg_randfor/trained_models/",mod_file)))
+    mod_fit <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor/trained_models/",mod_file)))
 
  
     predictions <- predict(unbundle(mod_fit),

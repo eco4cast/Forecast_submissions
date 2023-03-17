@@ -18,8 +18,8 @@ library(tsibble)
 library(fable)
 library(arrow)
 
-here::i_am("EFI_Theory/Generate_forecasts/tg_lasso/train_model.R")
-source(here("EFI_Theory/download_target.R"))
+here::i_am("Forecast_submissions/Generate_forecasts/tg_lasso/train_model.R")
+source(here("Forecast_submissions/download_target.R"))
 
 # Set model types
 model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
@@ -73,8 +73,8 @@ load_stage3 <- function(site,endpoint,variables){
 }
 
 
-if(file.exists(here("EFI_Theory/Generate_forecasts/noaa_downloads/past_allmeteo.csv"))) {
-  noaa_past_mean <- read_csv(here("EFI_Theory/Generate_forecasts/noaa_downloads/past_allmeteo.csv"))
+if(file.exists(here("Forecast_submissions/Generate_forecasts/noaa_downloads/past_allmeteo.csv"))) {
+  noaa_past_mean <- read_csv(here("Forecast_submissions/Generate_forecasts/noaa_downloads/past_allmeteo.csv"))
 } else {
   noaa_past_mean <- map_dfr(all_sites, load_stage3,endpoint,variables)
 }
@@ -164,7 +164,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       butcher() %>% 
       bundle()
     
-    saveRDS(res_bundle, here(paste0("EFI_Theory/Generate_forecasts/tg_lasso/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
+    saveRDS(res_bundle, here(paste0("Forecast_submissions/Generate_forecasts/tg_lasso/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
     tibble(theme = theme, site = site, target_variable = target_variable, rmse = final_rmse$.estimate, lambda = best_lasso$penalty)
     
   }
@@ -212,4 +212,4 @@ for (theme in model_themes) {
 
 mod_sums_all <- syms(apropos("_mod_summaries"))|>
   map_dfr(~eval(.)|>bind_rows())|>
-  write_csv(here("EFI_Theory/Generate_forecasts/tg_lasso/model_training_summaries.csv"))
+  write_csv(here("Forecast_submissions/Generate_forecasts/tg_lasso/model_training_summaries.csv"))
