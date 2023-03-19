@@ -7,6 +7,7 @@ We are currently working on developing forecast models that can be used across m
 If you are interested in joining the project, we would love for you to help! See contact information for Abby Lewis below to get in touch. Here are some possible places to start:
 - ./Generate_forecasts/temp_lm/forecast_model.R provides a good starting point with a very basic linear model
 - ./Generate_forecasts/ETS/forecast_model.R provides a good start point for a time series model
+- ./Generate_forecasts/tg_lasso/train_model.R and ./Generate_forecasts/tg_lasso/forecast_model.R provide a good starting point for a separated train-forecast workflow for machine learning, where model hyperparameter tuning is too intensive to perform every forecast, using tidymodels
 
 Automation is done using .yml files, which you can find and modify in .github/workflows
 
