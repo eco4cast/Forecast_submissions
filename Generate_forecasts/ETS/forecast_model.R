@@ -53,7 +53,7 @@ forecast_site <- function(site, target_variable, horiz,step) {
                   site_id == site) |> 
     tidyr::pivot_wider(names_from = "variable", values_from = "observation")
   
-  if(!target_variable%in%names(site_target_raw)|sum(!is.na(site_target_raw[target_variable]))==0){
+  if(!target_variable%in%names(site_target_raw)||sum(!is.na(site_target_raw[target_variable]))==0){
     message(paste0("No target observations at site ",site,". Skipping forecasts at this site."))
     return()
     
@@ -153,7 +153,7 @@ for (theme in model_themes) {
                                                 step = 1/24/2}
   
     ## Test with a single site first!
-    #forecast <- map_dfr(vars,run_all_vars,sites[1],forecast_site,horiz,step)
+    forecast <- map_dfr(vars,run_all_vars,"BLUE",forecast_site,horiz,step)
     
     #Visualize the ensemble predictions -- what do you think?
     #forecast %>%
