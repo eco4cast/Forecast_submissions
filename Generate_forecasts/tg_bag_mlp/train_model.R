@@ -75,10 +75,11 @@ load_stage3 <- function(site,endpoint,variables){
 }
 
 
-if(file.exists(here("Forecast_submissions/Generate_forecasts/noaa_downloads/past_allmeteo.csv"))) {
-  noaa_past_mean <- read_csv(here("Forecast_submissions/Generate_forecasts/noaa_downloads/past_allmeteo.csv"))
+if(file.exists(here("Generate_forecasts/noaa_downloads/past_allmeteo.csv"))) {
+  noaa_past_mean <- read_csv(here("Generate_forecasts/noaa_downloads/past_allmeteo.csv"))
 } else {
   noaa_past_mean <- map_dfr(all_sites, load_stage3,endpoint,variables)
+  write.csv(noaa_past_mean,"Generate_forecasts/noaa_downloads/past_allmeteo.csv", row.names = F)
 }
 
 
@@ -132,9 +133,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       hidden_units = tune(),
       penalty = tune(),
       epochs = 5
-      ) #|>
-      #set_mode("regression") %>%
-      #set_engine("ranger", importance = "impurity") 
+      )
     
     #k-fold cross-validation
     bag_mlp_resamp <- vfold_cv(site_target, v = n_folds, repeats = 5)# SET LOW FOR TESTING define k-fold cross validation procedure 
@@ -145,7 +144,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     #Tune models
     #If running in parallel  
     library(doParallel)
-    cl <- makePSOCKcluster(14) #SET 
+    cl <- makePSOCKcluster(4) #SET 
     registerDoParallel(cl) 
     bag_mlp_grid <- 
       tune_grid(
@@ -153,10 +152,13 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       resamples = bag_mlp_resamp,
       grid = 20 #SET LOW FOR TESTING
     )
+    parallel::stopCluster(cl)
+    rm(bag_mlp_resamp)
     
     ## Select best model via RMSE
     best_mod<-bag_mlp_grid|>
       select_best("rmse")
+    rm(bag_mlp_grid)
     
     #select model with best tuning parameter by RMSE, cross-validation approach
     final_mod <- finalize_workflow(
