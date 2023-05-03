@@ -1,5 +1,7 @@
 #Script creates trained model for each site and target variable using Lasso regression
 
+#### NOTE: Re-running this script will NOT overwrite previously saved models - if they are note deleted, the downstream forecasts
+# using the saved model objects will not run correctly
 
 #### Step 1: Load libraries
 library(here)
@@ -22,8 +24,8 @@ here::i_am("Forecast_submissions/Generate_forecasts/tg_lasso/train_model.R")
 source(here("Forecast_submissions/download_target.R"))
 
 # Set model types
-model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
-model_types = c("terrestrial","aquatics","phenology")
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes
+model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 
 
 #### Step 2: Get NOAA driver data
@@ -98,7 +100,8 @@ train_site <- function(site, noaa_past_mean, target_variable) {
                   site_id == site) |>
     tidyr::pivot_wider(names_from = "variable", values_from = "observation") |>
     dplyr::left_join(noaa_past_mean%>%
-                       filter(site_id == site), by = c("datetime", "site_id"))
+                       filter(site_id == site), by = c("datetime", "site_id"))|>
+    drop_na() #removes non-complete cases - BEWARE
   
   if(!target_variable%in%names(site_target)){
     message(paste0("No target observations at site ",site,". Skipping forecasts at this site."))
@@ -165,7 +168,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       bundle()
     
     saveRDS(res_bundle, here(paste0("Forecast_submissions/Generate_forecasts/tg_lasso/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-    tibble(theme = theme, site = site, target_variable = target_variable, rmse = final_rmse$.estimate, lambda = best_lasso$penalty)
+    tibble(theme = theme, site = site, n_obs = nrow(site_target), target_variable = target_variable, rmse = final_rmse$.estimate, lambda = best_lasso$penalty)
     
   }
 }
@@ -200,11 +203,15 @@ for (theme in model_themes) {
   
   site_var_combos <- expand_grid(vars, sites)|>
     rename(site = "sites", target_variable = "vars")
-    #filter(site == "KING"|site == "ABBY")
+    #filter(site == "KING"|site == "ABBY") for testing - 1 aq site and 1 terr site
   
-  mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, ~train_site(site = .x, target_variable = .y, noaa_past_mean = noaa_past_mean))|>
+
+  mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, possibly(
+    ~train_site(site = .x, target_variable = .y, noaa_past_mean = noaa_past_mean), 
+    otherwise = tibble(lambda = NA_real_)))|> #possibly only accepts static values so can't map '.x' into site or target_variable
     compact()|>
-    list_rbind()
+    list_rbind()|>
+    drop_na()
   
   assign(x = paste0(theme, "_mod_summaries"), value = mod_summaries)
   
@@ -213,3 +220,5 @@ for (theme in model_themes) {
 mod_sums_all <- syms(apropos("_mod_summaries"))|>
   map_dfr(~eval(.)|>bind_rows())|>
   write_csv(here("Forecast_submissions/Generate_forecasts/tg_lasso/model_training_summaries.csv"))
+
+
