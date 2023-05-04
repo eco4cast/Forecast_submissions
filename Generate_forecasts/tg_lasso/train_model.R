@@ -1,6 +1,6 @@
 #Script creates trained model for each site and target variable using Lasso regression
 
-#### NOTE: Re-running this script will NOT overwrite previously saved models - if they are note deleted, the downstream forecasts
+#### NOTE: Re-running this script will NOT overwrite previously saved models - if they are not deleted, the downstream forecasts
 # using the saved model objects will not run correctly
 
 #### Step 1: Load libraries
