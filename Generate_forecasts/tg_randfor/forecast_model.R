@@ -38,8 +38,8 @@ team_list <- list(list(individualName = list(givenName = "Abby",
 )
 
 model_id = "tg_randfor"
-model_themes = c("terrestrial_daily","aquatics","phenology") 
-model_types = c("terrestrial","aquatics","phenology") 
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks")
+model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
 #Create model metadata
@@ -179,10 +179,20 @@ run_all_vars = function(var,sites,forecast_site,noaa_future_daily){
 
 
 for (theme in model_themes) {
-  #Step 1: Download latest target data and site description data
-#  target = download_target(theme)
-  type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
-  
+  if(!theme%in%c("beetles","ticks") | wday(Sys.Date(), label=TRUE)=="Sun"){ #beetles and ticks only want forecasts every Sunday
+    #Step 1: Download latest target data and site description data
+    target = download_target(theme)
+    type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
+    
+    if("siteID" %in% colnames(target)){ #Sometimes the site is called siteID instead of site_id. Fixing here
+      target = target%>%
+        rename(site_id = siteID)
+    }
+    if("time" %in% colnames(target)){ #Sometimes the time column is instead labeled "datetime"
+      target = target%>%
+        rename(datetime = time)
+    }
+    
   site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv")|>
     filter(get(type)==1)
   sites = site_data$field_site_id
@@ -191,8 +201,8 @@ for (theme in model_themes) {
   if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
   if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
   if(theme == "terrestrial_daily")  {vars = c("nee","le")}
-  #if(theme == "beetles")            {vars = c("abundance","richness")}
-  #if(theme == "ticks")              {vars = c("amblyomma_americanum")}
+  if(theme == "beetles")            {vars = c("abundance","richness")}
+  if(theme == "ticks")              {vars = c("amblyomma_americanum")}
 
   ## Generate forecast
   forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site, otherwise = data.frame(prediction = NA_real_)),noaa_future_daily)|>
@@ -212,4 +222,5 @@ for (theme in model_themes) {
   
   # Step 5: Submit forecast!
   neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
+  }
 }
