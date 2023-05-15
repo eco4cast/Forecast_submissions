@@ -36,7 +36,7 @@ model_types = c("terrestrial","aquatics","phenology","beetles","ticks") #Replace
 
 #### Step 2: Get NOAA driver data
 
-# Skipping this for arima model
+# Skipping this for TBATS model
 
 #### Step 3.0: Define the forecast model for a site
 forecast_site <- function(site, target_variable, horiz,step) {
@@ -46,7 +46,7 @@ forecast_site <- function(site, target_variable, horiz,step) {
   # Get site information for elevation
   #site_info <- site_data |> dplyr::filter(field_site_id == site)
   
-  # Format site data for arima model
+  # Format site data for model
   site_target_raw <- target |>
     dplyr::select(datetime, site_id, variable, observation) |>
     dplyr::filter(variable == target_variable, 
