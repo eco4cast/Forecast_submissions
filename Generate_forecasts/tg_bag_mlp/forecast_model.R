@@ -1,4 +1,4 @@
-# Random forest model - mtry and min_n parameters tuned on all target historical data (date of tuning on file name in tg_randfor/trained_models/) and final fit to forecast 
+# Mag mlp - mtry and min_n parameters tuned on all target historical data (date of tuning on file name in tg_bag_mlp/trained_models/) and final fit to forecast 
 # Trained entirely on available meteorological observations at each site
 
 
@@ -16,9 +16,9 @@ library(fable)
 library(arrow)
 library(bundle)
 library(ranger)
-here::i_am("Forecast_submissions/Generate_forecasts/tg_bag_mlp/forecast_model.R")
-source(here("Forecast_submissions/download_target.R"))
-source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
+here::i_am("Generate_forecasts/tg_bag_mlp/forecast_model.R")
+source(here("download_target.R"))
+source(here("ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
 
 
 
@@ -129,9 +129,9 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   # Get site information for elevation
   site_info <- site_data |> dplyr::filter(field_site_id == site)
   
-  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
+  mod_file <- list.files(here("Generate_forecasts/tg_bag_mlp/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
   
-  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor/trained_models/",mod_file)))){
+  if(length(mod_file)==0){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
     return()
     
@@ -140,12 +140,12 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     #  Get 30-day predicted temperature ensemble at the site
     noaa_future <- noaa_future_daily%>%
       filter(site_id == site)|>
-      drop_na() #dropping NAs necessary for ranger package random forest models to run
+      drop_na() #dropping NAs necessary for some models to run
     
   #generate predictions with trained model
 
     
-    mod_fit <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor/trained_models/",mod_file)))
+    mod_fit <- readRDS(here(paste0("Generate_forecasts/tg_bag_mlp/trained_models/",mod_file)))
 
  
     predictions <- predict(unbundle(mod_fit),
