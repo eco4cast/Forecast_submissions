@@ -234,5 +234,5 @@ for (theme in model_themes) {
 
 mod_sums_all <- syms(apropos("_mod_summaries"))|>
   map_dfr(~eval(.)|>bind_rows())|>
-  write_csv(here("Forecast_submissions/Generate_forecasts/tg_bag_mlp/model_training_summaries.csv"))
+  write_csv(here("Generate_forecasts/tg_bag_mlp/model_training_summaries.csv"))
 
