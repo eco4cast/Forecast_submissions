@@ -1,5 +1,7 @@
 #Script creates trained model for each site and target variable using Random Forest in regression mode
 
+#### NOTE: Re-running this script will NOT overwrite previously saved models - if they are not deleted, the downstream forecasts
+# using the saved model objects will not run correctly
 
 #### Step 1: Load libraries
 library(here)
@@ -24,8 +26,8 @@ here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor/train_model.R")
 source(here("Forecast_submissions/download_target.R"))
 
 # Set model types
-model_themes = c("terrestrial_daily","aquatics","phenology") #This model is only relevant for three themes
-model_types = c("terrestrial","aquatics","phenology") 
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes
+model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 
 
 #### Step 2: Get NOAA driver data
@@ -115,7 +117,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     site_target<-site_target|>
       drop_na()
     
-    n_folds <- ifelse(nrow(site_target)<25, 5, 10) #sets cross folds lower if number of complete obs is low
+    n_folds <- ifelse(nrow(site_target)<25, 5, 10)   #sets cross folds lower if number of complete obs is low
     
     #Recipe for training models
     rec_base <- recipe(site_target)|>
@@ -134,7 +136,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       set_engine("ranger", importance = "impurity") 
     
     #k-fold cross-validation
-    randfor_resamp <- vfold_cv(site_target, v = n_folds, repeats = 5)# SET LOW FOR TESTING define k-fold cross validation procedure 
+    randfor_resamp <- vfold_cv(site_target, v = n_folds, repeats = 5)# define k-fold cross validation procedure 
     ## Assemble workflow and tune
     wf <- workflow() %>%
       add_recipe(rec_base)
@@ -142,7 +144,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     #Tune models
     #If running in parallel  
     library(doParallel)
-    cl <- makePSOCKcluster(14) #SET 
+    cl <- makePSOCKcluster(16) #SET 
     registerDoParallel(cl) 
     randfor_grid <- 
       tune_grid(
@@ -216,12 +218,16 @@ for (theme in model_themes) {
   if(theme == "ticks")              {vars = c("amblyomma_americanum")}
   
   site_var_combos <- expand_grid(vars, sites)|>
-    rename(site = "sites", target_variable = "vars")
+    rename(site = "sites", target_variable = "vars")#|>
+    #filter(site == "KING"|site == "ABBY") # for testing - 1 aq site and 1 terr site
   
-  mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, ~
-    train_site(site = .x, target_variable = .y, noaa_past_mean = noaa_past_mean))|>
+
+  mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, possibly(
+    ~train_site(site = .x, target_variable = .y, noaa_past_mean = noaa_past_mean), 
+    otherwise = tibble(mtry = NA_real_)))|> #possibly only accepts static values so can't map '.x' into site or target_variable
     compact()|>
-    list_rbind()
+    list_rbind()|>
+    drop_na()
   
   assign(x = paste0(theme, "_mod_summaries"), value = mod_summaries)
   
