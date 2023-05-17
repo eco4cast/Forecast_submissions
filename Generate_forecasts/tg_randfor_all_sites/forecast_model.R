@@ -15,7 +15,7 @@ library(tsibble)
 library(fable)
 library(arrow)
 library(bundle)
-library(glmnet)
+library(ranger)
 here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_all_sites/forecast_model.R")
 source(here("Forecast_submissions/download_target.R"))
 source(here("Forecast_submissions/ignore_sigpipe.R")) #might fail locally
