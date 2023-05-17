@@ -1,4 +1,5 @@
 #Script creates trained model for each site and target variable using bag_mars
+#Multivariate Adaptive Regression Splines (MARS)
 
 #### NOTE: Re-running this script will NOT overwrite previously saved models - if they are not deleted, the downstream forecasts
 # using the saved model objects will not run correctly
@@ -117,8 +118,8 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
   tune_bag_mars <- bag_mars(
     mode = "regression",
     num_terms = tune(),
-    prod_degree = tune(),
-    prune_method = tune(),
+    prod_degree = 1,
+    prune_method = 'backward',
     engine = "earth"
   )
     
