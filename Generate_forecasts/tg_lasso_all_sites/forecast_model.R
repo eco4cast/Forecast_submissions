@@ -1,4 +1,4 @@
-# lasso model - regularization parameter tuned on all target historical data (date of tuning on file name in tg_lasso/trained_models/) and final fit to forecast 
+# lasso model - regularization parameter tuned on all target historical data (date of tuning on file name in tg_lasso_all_sites/trained_models/) and final fit to forecast 
 # MAKE SURE TO CHANGE METADATA ONCE NUMBER OF VARIABLES SELECTED
 
 
@@ -16,7 +16,7 @@ library(fable)
 library(arrow)
 library(bundle)
 library(glmnet)
-here::i_am("Forecast_submissions/Generate_forecasts/tg_lasso/forecast_model.R")
+here::i_am("Forecast_submissions/Generate_forecasts/tg_lasso_all_sites/forecast_model.R")
 source(here("Forecast_submissions/download_target.R"))
 source(here("Forecast_submissions/ignore_sigpipe.R")) #might fail locally
 
@@ -55,7 +55,7 @@ model_metadata = list(
     ),
     drivers = list(
       status = "propagates",
-      complexity = 9, # CHANGE THIS BASED ON NUMBER OF VARIABLES
+      complexity = 10, # CHANGE THIS BASED ON NUMBER OF VARIABLES
       propagation = list( 
         type = "ensemble", 
         size = 31) 

@@ -1,4 +1,4 @@
-# lasso model - regularization parameter tuned on all target historical data (date of tuning on file name in tg_lasso/trained_models/) and final fit to forecast 
+# random forest model - hyperparameters mtry and min_n tuned on all target historical data (date of tuning on file name in tg_randfor_all_sites/trained_models/) and final fit to forecast 
 # MAKE SURE TO CHANGE METADATA ONCE NUMBER OF VARIABLES SELECTED
 
 
@@ -16,11 +16,9 @@ library(fable)
 library(arrow)
 library(bundle)
 library(glmnet)
-here::i_am("Forecast_submissions/Generate_forecasts/tg_lasso/forecast_model.R")
+here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_all_sites/forecast_model.R")
 source(here("Forecast_submissions/download_target.R"))
 source(here("Forecast_submissions/ignore_sigpipe.R")) #might fail locally
-
-
 
 
 #### Step 1: Define team name, team members, and theme
@@ -37,7 +35,7 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        electronicMailAddress = "Caleb_Robbins@baylor.edu")
 )
 
-model_id = "lasso"
+model_id = "randfor"
 model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes
 model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
@@ -55,7 +53,7 @@ model_metadata = list(
     ),
     drivers = list(
       status = "propagates",
-      complexity = 9, # CHANGE THIS BASED ON NUMBER OF VARIABLES
+      complexity = 10, # CHANGE THIS BASED ON NUMBER OF VARIABLES
       propagation = list( 
         type = "ensemble", 
         size = 31) 
@@ -75,7 +73,6 @@ model_metadata = list(
   )
 )
 #metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
-
 
 
 #### Step 2: Get NOAA driver data
@@ -127,9 +124,9 @@ forecast_all_sites <- function(sites,noaa_future_daily,target_variable) {
   
   
   
-  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_lasso_all_sites/trained_models/"), pattern = paste(theme, target_variable, sep = "-"))
+  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor_all_sites/trained_models/"), pattern = paste(theme, target_variable, sep = "-"))
   
-  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_lasso_all_sites/trained_models/",mod_file)))){
+  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_all_sites/trained_models/",mod_file)))){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
     return()
     
@@ -137,10 +134,11 @@ forecast_all_sites <- function(sites,noaa_future_daily,target_variable) {
     
     #  Get 30-day predicted temperature ensemble at the site
     noaa_future <- noaa_future_daily%>%
-      filter(site_id %in% sites)
+      filter(site_id %in% sites)|>
+      drop_na() #necessary for ranger engine to fit random forest - won't accept NA
     
     #generate predictions with trained model
-    mod_fit <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_lasso_all_sites/trained_models/",mod_file)))
+    mod_fit <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_all_sites/trained_models/",mod_file)))
     
     predictions <- predict(unbundle(mod_fit),
                            new_data = noaa_future)|>
@@ -205,7 +203,7 @@ for (theme in model_themes) {
     #Forecast output file name in standards requires for Challenge.
     # csv.gz means that it will be compressed
     file_date <- Sys.Date() #forecast$reference_datetime[1]
-    model_id = "tg_lasso_all_sites"
+    model_id = "tg_randfor_all_sites"
     forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
     
     #Write csv to disk
@@ -215,6 +213,9 @@ for (theme in model_themes) {
     neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
   }
 }
+
+
+
 
 
 
