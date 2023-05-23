@@ -16,6 +16,7 @@ library(fable)
 library(arrow)
 source("download_target.R")
 library(forecast)
+library(smooth)
 
 
 #### Step 1: Define team name, team members, and theme
