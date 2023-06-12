@@ -95,6 +95,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   site_info <- site_data |> dplyr::filter(field_site_id == site)
   
   mod_file <- list.files(here("Generate_forecasts/tg_bag_mlp/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
+  message(paste0("mod_file",mod_file))
   
   if(length(mod_file)==0){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
@@ -116,14 +117,14 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     predictions <- predict(unbundle(mod_fit),
                                 new_data = noaa_future)|>
       rename(prediction = ".pred")
-    message(colnames(predictions))
+    message(paste0("colnames(predictions): ",colnames(predictions)))
     
     forecast <- noaa_future %>% 
       dplyr::select(all_of(variables)) %>% 
       bind_cols(predictions) |> 
       mutate(site_id = site,
              variable = target_variable)
-    message(colnames(forecast))
+    message(paste0("colnames(forecast): ",colnames(forecast)))
     
   
     # Format results to EFI standard
@@ -133,7 +134,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
              model_id = model_id) |>
       dplyr::select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
-    message(colnames(forecast))
+    message(paste0("colnames(forecast): ",colnames(forecast)))
     return(forecast)
   }
 }
