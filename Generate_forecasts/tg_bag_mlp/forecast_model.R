@@ -82,7 +82,7 @@ noaa_future_daily <- noaa_future |>
   pivot_wider(names_from = variable, values_from = prediction) |>
   # convert to Celsius
   mutate(air_temperature = air_temperature - 273.15) |> 
-  select(datetime, site_id, all_of(variables), parameter)
+  dplyr::select(datetime, site_id, all_of(variables), parameter)
 
 
 #### Step 3.0: Define the forecasts model for a site
@@ -117,7 +117,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
       rename(prediction = ".pred")
     
     forecast <- noaa_future %>% 
-      select(all_of(variables)) %>% 
+      dplyr::select(all_of(variables)) %>% 
       bind_cols(predictions) |> 
       mutate(site_id = site,
              variable = target_variable)
@@ -128,7 +128,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
       mutate(reference_datetime = forecast_date,
              family = "ensemble",
              model_id = model_id) |>
-      select(model_id, datetime, reference_datetime,
+      dplyr::select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
   }
 }
@@ -161,6 +161,8 @@ for (theme in model_themes) {
   ## Generate forecast
   forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site, otherwise = data.frame(prediction = NA_real_)),noaa_future_daily)|>
     filter(!is.na(prediction))
+  print(colnames(forecast))
+  print(nrow(forecast))
   
 
   #Forecast output file name in standards requires for Challenge.
