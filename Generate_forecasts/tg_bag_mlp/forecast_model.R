@@ -134,6 +134,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
       dplyr::select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
     message(colnames(forecast))
+    return(forecast)
   }
 }
 
