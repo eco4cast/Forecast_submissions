@@ -1,4 +1,4 @@
-# Mag mlp - mtry and min_n parameters tuned on all target historical data (date of tuning on file name in tg_bag_mlp/trained_models/) and final fit to forecast 
+# Bag mlp - mtry and min_n parameters tuned on all target historical data (date of tuning on file name in tg_bag_mlp/trained_models/) and final fit to forecast 
 # Trained entirely on available meteorological observations at each site
 
 
@@ -115,12 +115,14 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     predictions <- predict(unbundle(mod_fit),
                                 new_data = noaa_future)|>
       rename(prediction = ".pred")
+    colnames(predictions)
     
     forecast <- noaa_future %>% 
       dplyr::select(all_of(variables)) %>% 
       bind_cols(predictions) |> 
       mutate(site_id = site,
              variable = target_variable)
+    colnames(forecast)
     
   
     # Format results to EFI standard
@@ -130,6 +132,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
              model_id = model_id) |>
       dplyr::select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
+    colnames(forecast)
   }
 }
 
