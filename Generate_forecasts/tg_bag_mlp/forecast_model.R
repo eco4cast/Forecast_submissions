@@ -107,6 +107,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     noaa_future <- noaa_future_daily%>%
       filter(site_id == site)|>
       drop_na() #dropping NAs necessary for some models to run
+    message(paste0("NOAA future dimensions: ",paste(dim(noaa_future), collapse = " ")))
     
   #generate predictions with trained model
 
@@ -114,8 +115,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     mod_fit <- readRDS(here(paste0("Generate_forecasts/tg_bag_mlp/trained_models/",mod_file)))
     message(paste0("Length of workflow: ",length(mod_fit)))
  
-    predictions <- predict(unbundle(mod_fit),
-                                new_data = noaa_future)|>
+    predictions <- predict(unbundle(mod_fit),new_data = noaa_future)%>%
       rename(prediction = ".pred")
     message(paste0("colnames(predictions): ",colnames(predictions)))
     
