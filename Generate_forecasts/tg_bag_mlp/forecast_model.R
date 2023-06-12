@@ -15,12 +15,13 @@ library(tsibble)
 library(fable)
 library(arrow)
 library(bundle)
-library(ranger)
+library(parsnip)
+library(recipes)
+library(magrittr)
+#library(ranger)
 here::i_am("Generate_forecasts/tg_bag_mlp/forecast_model.R")
 source(here("download_target.R"))
 source(here("ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
-
-
 
 
 #### Step 1: Define team name, team members, and theme
@@ -114,6 +115,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     
     mod_fit <- readRDS(here(paste0("Generate_forecasts/tg_bag_mlp/trained_models/",mod_file)))
     message(paste0("Length of workflow: ",length(mod_fit)))
+    message(p$fit$fit$fit$imp)
  
     predictions <- predict(unbundle(mod_fit),new_data = noaa_future)%>%
       rename(prediction = ".pred")
@@ -124,7 +126,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
       bind_cols(predictions) |> 
       mutate(site_id = site,
              variable = target_variable)
-    message(paste0("colnames(forecast): ",colnames(forecast)))
+    message(paste0("colnames(forecast): ",paste(colnames(forecast), collapse = ", ")))
     
   
     # Format results to EFI standard
@@ -134,7 +136,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
              model_id = model_id) |>
       dplyr::select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
-    message(paste0("colnames(forecast): ",colnames(forecast)))
+    message(paste0("colnames(forecast): ",paste(colnames(forecast), collapse = ", ")))
     return(forecast)
   }
 }
