@@ -42,42 +42,6 @@ model_themes = c("terrestrial_daily","aquatics","phenology")
 model_types = c("terrestrial","aquatics","phenology") 
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
-#Create model metadata
-model_metadata = list(
-  forecast = list(
-    model_description = list(
-      forecast_model_id =  model_id, 
-      type = "empirical",  
-      repository = "https://github.com/EFI-Theory/Forecast_submissions" 
-    ),
-    initial_conditions = list(
-      status = "absent"
-    ),
-    drivers = list(
-      status = "propagates",
-      complexity = 9, # CHANGE THIS BASED ON NUMBER OF VARIABLES
-      propagation = list( 
-        type = "ensemble", 
-        size = 31) 
-    ),
-    parameters = list(
-      status = "absent"
-    ),
-    random_effects = list(
-      status = "absent"
-    ),
-    process_error = list(
-      status = "absent"
-    ),
-    obs_error = list(
-      status = "absent"
-    )
-  )
-)
-#metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
-
-
-
 #### Step 2: Get NOAA driver data
 
 forecast_date <- Sys.Date()

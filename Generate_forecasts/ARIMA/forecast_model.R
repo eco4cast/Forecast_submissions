@@ -35,7 +35,6 @@ model_types = c("terrestrial","aquatics","phenology","beetles","ticks") #Replace
 
 
 #### Step 2: Get NOAA driver data
-
 # Skipping this for arima model
 
 #### Step 3.0: Define the forecast model for a site
@@ -168,11 +167,11 @@ for (theme in model_themes) {
     model_id = "tg_arima"
     forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
     
+    forecast <- forecast%>%
+      filter(datetime>=file_date)
+    
     #Write csv to disk
     write_csv(forecast, forecast_file)
-    
-    #Generate metadata
-    #metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
     
     # Step 5: Submit forecast!
     neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)

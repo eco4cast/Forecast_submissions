@@ -153,7 +153,7 @@ for (theme in model_themes) {
                                                 step = 1/24/2}
   
     ## Test with a single site first!
-    #forecast <- map_dfr(vars[3],run_all_vars,sites[2],forecast_site,horiz,step)
+    #forecast <- map_dfr(vars[1],run_all_vars,sites[3],forecast_site,horiz,step)
     
     #Visualize the ensemble predictions -- what do you think?
     #forecast %>%
@@ -171,6 +171,9 @@ for (theme in model_themes) {
     file_date <- Sys.Date() #forecast$reference_datetime[1]
     model_id = "tg_tbats"
     forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
+    
+    forecast <- forecast%>%
+      filter(datetime>=file_date)
     
     #Write csv to disk
     write_csv(forecast, forecast_file)

@@ -172,6 +172,9 @@ for (theme in model_themes) {
     model_id = "tg_ets"
     forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
     
+    forecast <- forecast%>%
+      filter(datetime>=file_date)
+    
     #Write csv to disk
     write_csv(forecast, forecast_file)
     
