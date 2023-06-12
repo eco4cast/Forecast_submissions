@@ -115,14 +115,14 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     predictions <- predict(unbundle(mod_fit),
                                 new_data = noaa_future)|>
       rename(prediction = ".pred")
-    colnames(predictions)
+    print(colnames(predictions))
     
     forecast <- noaa_future %>% 
       dplyr::select(all_of(variables)) %>% 
       bind_cols(predictions) |> 
       mutate(site_id = site,
              variable = target_variable)
-    colnames(forecast)
+    print(colnames(forecast))
     
   
     # Format results to EFI standard
