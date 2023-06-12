@@ -115,7 +115,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     
     mod_fit <- readRDS(here(paste0("Generate_forecasts/tg_bag_mlp/trained_models/",mod_file)))
     message(paste0("Length of workflow: ",length(mod_fit)))
-    message(p$fit$fit$fit$imp)
+    message(paste0("Workflow: \n",paste(p$fit$fit$fit$imp, collapse = "\n")))
  
     predictions <- predict(unbundle(mod_fit),new_data = noaa_future)%>%
       rename(prediction = ".pred")
