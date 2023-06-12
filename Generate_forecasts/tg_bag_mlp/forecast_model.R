@@ -19,9 +19,9 @@ library(parsnip)
 library(recipes)
 library(magrittr)
 #library(ranger)
-here::i_am("Generate_forecasts/tg_bag_mlp/forecast_model.R")
-source(here("download_target.R"))
-source(here("ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
+here::i_am("Forecast_submissions/Generate_forecasts/tg_bag_mlp/forecast_model.R")
+source(here("Forecast_submissions/download_target.R"))
+source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
 
 
 #### Step 1: Define team name, team members, and theme
@@ -95,7 +95,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   # Get site information for elevation
   site_info <- site_data |> dplyr::filter(field_site_id == site)
   
-  mod_file <- list.files(here("Generate_forecasts/tg_bag_mlp/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
+  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_bag_mlp/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
   message(paste0("mod_file: ",mod_file))
   
   if(length(mod_file)==0){
@@ -113,7 +113,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   #generate predictions with trained model
 
     
-    mod_fit <- readRDS(here(paste0("Generate_forecasts/tg_bag_mlp/trained_models/",mod_file)))
+    mod_fit <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_bag_mlp/trained_models/",mod_file)))
     message(paste0("Length of workflow: ",length(mod_fit)))
     message(paste0("Workflow: \n",paste(unbundle(mod_fit)$fit$fit$fit$imp, collapse = "\n")))
  
