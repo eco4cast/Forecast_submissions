@@ -95,13 +95,13 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
   site_info <- site_data |> dplyr::filter(field_site_id == site)
   
   mod_file <- list.files(here("Generate_forecasts/tg_bag_mlp/trained_models/"), pattern = paste(theme, site, target_variable, sep = "-"))
-  message(paste0("mod_file",mod_file))
+  message(paste0("mod_file: ",mod_file))
   
   if(length(mod_file)==0){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
     return()
     
-} else {
+    } else {
 
     #  Get 30-day predicted temperature ensemble at the site
     noaa_future <- noaa_future_daily%>%
@@ -112,7 +112,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
 
     
     mod_fit <- readRDS(here(paste0("Generate_forecasts/tg_bag_mlp/trained_models/",mod_file)))
-
+    message(paste0("Length of workflow: ",length(mod_fit)))
  
     predictions <- predict(unbundle(mod_fit),
                                 new_data = noaa_future)|>
