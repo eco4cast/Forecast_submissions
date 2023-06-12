@@ -83,6 +83,7 @@ noaa_future_daily <- noaa_future |>
   # convert to Celsius
   mutate(air_temperature = air_temperature - 273.15) |> 
   dplyr::select(datetime, site_id, all_of(variables), parameter)
+message(nrow(noaa_future_daily))
 
 
 #### Step 3.0: Define the forecasts model for a site
@@ -115,14 +116,14 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
     predictions <- predict(unbundle(mod_fit),
                                 new_data = noaa_future)|>
       rename(prediction = ".pred")
-    print(colnames(predictions))
+    message(colnames(predictions))
     
     forecast <- noaa_future %>% 
       dplyr::select(all_of(variables)) %>% 
       bind_cols(predictions) |> 
       mutate(site_id = site,
              variable = target_variable)
-    print(colnames(forecast))
+    message(colnames(forecast))
     
   
     # Format results to EFI standard
@@ -132,7 +133,7 @@ forecast_site <- function(site,noaa_future_daily,target_variable) {
              model_id = model_id) |>
       dplyr::select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
-    colnames(forecast)
+    message(colnames(forecast))
   }
 }
 
@@ -164,8 +165,8 @@ for (theme in model_themes) {
   ## Generate forecast
   forecast <- map_dfr(vars,run_all_vars,sites,possibly(forecast_site, otherwise = data.frame(prediction = NA_real_)),noaa_future_daily)|>
     filter(!is.na(prediction))
-  print(colnames(forecast))
-  print(nrow(forecast))
+  message(colnames(forecast))
+  message(nrow(forecast))
   
 
   #Forecast output file name in standards requires for Challenge.
