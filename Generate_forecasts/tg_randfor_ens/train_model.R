@@ -30,7 +30,7 @@ library(tsibble)
 library(fable)
 library(arrow)
 
-here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens_parm_test/train_model.R")
+here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens/train_model.R")
 source(here("Forecast_submissions/download_target.R"))
 
 # Set model types
@@ -135,7 +135,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     set_engine("ranger", importance = "impurity") 
   
   #k-fold cross-validation
-  randfor_resamp <- vfold_cv(site_target, v = 2, repeats = 2)# define k-fold cross validation procedure 
+  randfor_resamp <- vfold_cv(site_target, v = 10, repeats = 5)# define k-fold cross validation procedure 
   ## Assemble workflow and tune
   wf <- workflow() %>%
     add_recipe(rec_base)
@@ -149,7 +149,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     tune_grid(
       wf %>% add_model(tune_randfor),
       resamples = randfor_resamp,
-      grid = 2 
+      grid = 20 
     )
   
   ## Select best model via RMSE
@@ -181,7 +181,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     butcher() %>% 
     bundle()
   
-  saveRDS(final_mod, here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_parm_test/trained_models/", 
+  saveRDS(final_mod, here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens/trained_models/", 
                                  paste(theme, site, target_variable,"best_workflow",Sys.Date(), sep = "-"), ".Rds")))
   
   # collect information on full fit
@@ -219,8 +219,8 @@ for (theme in model_themes) {
   if(theme == "ticks")              {vars = c("amblyomma_americanum")}
   
   site_var_combos <- expand_grid(vars, sites)|>
-    rename(site = "sites", target_variable = "vars")|>
-    filter(site == "KING"|site == "ABBY") # for testing - 1 aq site and 1 terr site
+    rename(site = "sites", target_variable = "vars")#|>
+    #filter(site == "KING"|site == "ABBY") # for testing - 1 aq site and 1 terr site
   
 
   mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, possibly(
@@ -236,5 +236,5 @@ for (theme in model_themes) {
 
 mod_sums_all <- syms(apropos("_mod_summaries"))|>
   map_dfr(~eval(.)|>bind_rows())|>
-  write_csv(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens_parm_test/model_training_summaries.csv"))
+  write_csv(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens/model_training_summaries.csv"))
 

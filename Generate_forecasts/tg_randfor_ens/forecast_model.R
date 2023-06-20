@@ -16,7 +16,7 @@ library(fable)
 library(arrow)
 library(bundle)
 library(ranger)
-here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens_parm_test/forecast_model.R")
+here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens/forecast_model.R")
 source(here("Forecast_submissions/download_target.R"))
 #source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
 
@@ -58,16 +58,16 @@ model_metadata = list(
       complexity = 9, # CHANGE THIS BASED ON NUMBER OF VARIABLES
       propagation = list( 
         type = "ensemble", 
-        size = 31) 
+        size = 310) 
     ),
     parameters = list(
-      status = "absent"
+      status = "absent" # NEED TO MENTION ENSEMBLING?
     ),
     random_effects = list(
       status = "absent"
     ),
     process_error = list(
-      status = "absent"
+      status = "absent" ### NEED TO FILL IN SOMETHING HERE
     ),
     obs_error = list(
       status = "absent"
@@ -166,17 +166,17 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
     drop_na()
   
   # Grab full workflow created in file train_model.R
-  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens_parm_test/trained_models/"), 
+  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens/trained_models/"), 
                          pattern = paste(theme, site, target_variable, sep = "-"))
   
-  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_parm_test/trained_models/",mod_file)))){
+  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens/trained_models/",mod_file)))){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
     return()
     
   } else {
     
     ### Generate ensemble fits
-    final_mod <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_parm_test/trained_models/",mod_file)))
+    final_mod <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens/trained_models/",mod_file)))
     
     n_splits <- 10
     split_fits <- site_target|>
@@ -280,7 +280,7 @@ for (theme in model_themes) {
     
     
     # Step 5: Submit forecast!
-    neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = TRUE)
+   # neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
   }
 }
 
