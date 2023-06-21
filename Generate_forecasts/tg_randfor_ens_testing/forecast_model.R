@@ -16,7 +16,7 @@ library(fable)
 library(arrow)
 library(bundle)
 library(ranger)
-here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens/forecast_model.R")
+here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/forecast_model.R")
 source(here("Forecast_submissions/download_target.R"))
 #source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
 
@@ -37,7 +37,7 @@ team_list <- list(list(individualName = list(givenName = "Abby",
                        electronicMailAddress = "Caleb_Robbins@baylor.edu")
 )
 
-model_id = "tg_randfor_ens"
+model_id = "tg_randfor_ens_test"
 model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks")
 model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
@@ -166,17 +166,17 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
     drop_na()
   
   # Grab full workflow created in file train_model.R
-  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens/trained_models/"), 
+  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/trained_models/"), 
                          pattern = paste(theme, site, target_variable, sep = "-"))
   
-  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens/trained_models/",mod_file)))){
+  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/trained_models/",mod_file)))){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
     return()
     
   } else {
     
     ### Generate ensemble fits
-    final_mod <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens/trained_models/",mod_file)))
+    final_mod <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/trained_models/",mod_file)))
     
     n_splits <- 10
     split_fits <- site_target|>
@@ -197,6 +197,11 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
       mutate(resid = .pred - get(target_variable))|>
       summarize(var(resid))|>pull()
     
+    #Export past predictions
+    mean_preds|>
+      bind_cols(site_target)|> 
+      write_csv(here(paste0(paste("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/",
+                          theme, site, target_variable, "Predicted", sep = "-"), ".csv")))
     
     ### Predict forecasts
     #  Get 30-day predicted temperature ensemble at the site
@@ -222,6 +227,7 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
              model_id = model_id) |>
       select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
+    
   }
 }
 
@@ -271,7 +277,7 @@ for (theme in model_themes) {
     #Forecast output file name in standards requires for Challenge.
     # csv.gz means that it will be compressed
     file_date <- Sys.Date() #forecast$reference_datetime[1]
-    model_id = "tg_randfor_ens"
+    model_id = "tg_randfor_ens_test"
     forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
     
     
