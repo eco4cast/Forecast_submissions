@@ -16,65 +16,21 @@ library(fable)
 library(arrow)
 library(bundle)
 library(ranger)
-here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/forecast_model.R")
+here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens_rnnresids/fit_models.R")
 source(here("Forecast_submissions/download_target.R"))
 #source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
 
 
 
 
-#### Step 1: Define team name, team members, and theme
+#### Step 1: Define model_id and theme
 
-team_name <- "EFI Theory"
 
-team_list <- list(list(individualName = list(givenName = "Abby", 
-                                             surName = "Lewis"),
-                       organizationName = "Virginia Tech",
-                       electronicMailAddress = "aslewis@vt.edu"),
-                  list(individualName = list(givenName = "Caleb", 
-                                             surName = "Robbins"),
-                       organizationName = "Baylor University",
-                       electronicMailAddress = "Caleb_Robbins@baylor.edu")
-)
-
-model_id = "tg_randfor_ens_test"
+model_id = "tg_randfor_ens_rnnresids"
 model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks")
 model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 #Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
-#Create model metadata
-model_metadata = list(
-  forecast = list(
-    model_description = list(
-      forecast_model_id =  model_id, 
-      type = "empirical",  
-      repository = "https://github.com/EFI-Theory/Forecast_submissions" 
-    ),
-    initial_conditions = list(
-      status = "absent"
-    ),
-    drivers = list(
-      status = "propagates",
-      complexity = 9, # CHANGE THIS BASED ON NUMBER OF VARIABLES
-      propagation = list( 
-        type = "ensemble", 
-        size = 310) 
-    ),
-    parameters = list(
-      status = "absent" # NEED TO MENTION ENSEMBLING?
-    ),
-    random_effects = list(
-      status = "absent"
-    ),
-    process_error = list(
-      status = "absent" ### NEED TO FILL IN SOMETHING HERE
-    ),
-    obs_error = list(
-      status = "absent"
-    )
-  )
-)
-#metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
 
 #### Step 2: Get NOAA driver data
 
@@ -148,6 +104,11 @@ if(file.exists(here("Forecast_submissions/Generate_forecasts/noaa_downloads/past
 #### Step 3.0: Define the forecasts model for a site
 
 
+#model_theme <- "aquatics"
+#theme<- "aquatics"
+#target <- download_target(theme)
+#forecast_site_test <- forecast_site(site = "ARIK", noaa_past_mean, noaa_future_daily, target_variable = "oxygen")
+
 forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable) {
   message(paste0("Running site: ", site))
   
@@ -166,17 +127,17 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
     drop_na()
   
   # Grab full workflow created in file train_model.R
-  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/trained_models/"), 
+  mod_file <- list.files(here("Forecast_submissions/Generate_forecasts/tg_randfor_ens_rnnresids/trained_models/"), 
                          pattern = paste(theme, site, target_variable, sep = "-"))
   
-  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/trained_models/",mod_file)))){
+  if(!file.exists(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_rnnresids/trained_models/",mod_file)))){
     message(paste0("No trained model for site ",site,". Skipping forecasts at this site."))
     return()
     
   } else {
     
     ### Generate ensemble fits
-    final_mod <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/trained_models/",mod_file)))
+    final_mod <- readRDS(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_rnnresids/trained_models/",mod_file)))
     
     n_splits <- 10
     split_fits <- site_target|>
@@ -197,26 +158,24 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
       mutate(resid = .pred - get(target_variable))|>
       summarize(var(resid))|>pull()
     
-    #Export past predictions
+    #Export past predictions for darts
     mean_preds|>
-      bind_cols(site_target)|> 
-      write_csv(here(paste0(paste("Forecast_submissions/Generate_forecasts/tg_randfor_ens_testing/",
-                          theme, site, target_variable, "Predicted", sep = "-"), ".csv")))
+      bind_cols(site_target|>select({{variables}}))|>
+      mutate(resid = .pred - get(target_variable))|>
+      write_csv(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_rnnresids/model_prediction_dfs/",
+                          paste(theme, site, target_variable, "Predicted", sep = "-"), ".csv")))
     
-    ### Predict forecasts
+    ### Generate forecasts
     #  Get 30-day predicted temperature ensemble at the site
     noaa_future <- noaa_future_daily%>%
       filter(site_id == site)|>
       drop_na() #dropping NAs necessary for ranger package random forest models to run
     
     #generate predictions with model ensemble
-    
-    #need to be able to identify the unique ensemble members
-    predictions <- map(split_fits, ~predict(., noaa_future)|>bind_cols(noaa_future)|>rename(prediction = ".pred"))|>
+    predictions <- map(split_fits, 
+                       ~predict(., noaa_future)|>bind_cols(noaa_future)|>rename(prediction = ".pred"))|>
       list_rbind(names_to = "param_set")|>
-      mutate(parameter = str_c(parameter, "_",param_set)|>as_factor()|>as.numeric())|>
-      #create a new value for unique driverXparameter set combination (ensemble member set)
-      mutate(prediction = prediction + rnorm(n(),mean = 0, sd = sqrt(err_var))) 
+      mutate(parameter = str_c(parameter, "_",param_set)|>as_factor()|>as.numeric()) 
     # if aquatics - norm fine, if beetles/ticks, likely need poisson or something
     #add estimate of process error noise - likely need to vary this for certain variables - abundances, for example
     forecast <- predictions|> 
@@ -241,7 +200,7 @@ run_all_vars = function(var,sites,forecast_site,noaa_past_mean,noaa_future_daily
   
 }
 
-
+model_themes <- "aquatics"
 for (theme in model_themes) {
   if(!theme%in%c("beetles","ticks") | wday(Sys.Date(), label=TRUE)=="Sun"){ #beetles and ticks only want forecasts every Sunday
     #Step 1: Download latest target data and site description data
@@ -269,24 +228,12 @@ for (theme in model_themes) {
     if(theme == "ticks")              {vars = c("amblyomma_americanum")}
     
     ## Generate forecast
-    forecast <- map_dfr(vars,run_all_vars,sites,
+    map_dfr(vars,run_all_vars,sites,
                         possibly(forecast_site, otherwise = data.frame(prediction = NA_real_)),noaa_past_mean,noaa_future_daily)|>
-      filter(!is.na(prediction))
+      filter(!is.na(prediction))|>
+      write_csv(here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor_ens_rnnresids/model_forecast_dfs/",
+                                 paste(theme, "forecasts", sep = "-"), ".csv")))
     
-    
-    #Forecast output file name in standards requires for Challenge.
-    # csv.gz means that it will be compressed
-    file_date <- Sys.Date() #forecast$reference_datetime[1]
-    model_id = "tg_randfor_ens_test"
-    forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
-    
-    
-    #Write csv to disk
-    write_csv(forecast, forecast_file)
-    
-    
-    # Step 5: Submit forecast!
-   # neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
   }
 }
 
