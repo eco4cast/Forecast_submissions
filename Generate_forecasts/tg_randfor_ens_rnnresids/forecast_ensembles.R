@@ -144,5 +144,14 @@ forecast|>filter(site_id == "ARIK", variable == "oxygen", !is.na(prediction_uppe
   ggplot()+
   geom_line(aes(x = datetime, y = prediction))+
   geom_line(aes(x = datetime, y = prediction_upper), linetype = 2)+
-  geom_line(aes(x = datetime, y = prediction_lower), linetype = 2)
+  geom_line(aes(x = datetime, y = prediction_lower), linetype = 2)+
+  ylab("Dissolved oxygen (mg/L)")+
+  xlab("Date")+
+  ggtitle("Random Forest + Prob-ML Forecast")+
+  theme_bw()
+
+forecast|>filter(site_id == "ARIK", variable == "oxygen", !is.na(prediction_upper))|>
+  ggplot()+
+  geom_line(aes(x = datetime, y = prediction_upper-prediction), linetype = 2)
+
 
