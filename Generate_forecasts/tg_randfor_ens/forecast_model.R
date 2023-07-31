@@ -18,7 +18,7 @@ library(bundle)
 library(ranger)
 here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor_ens/forecast_model.R")
 source(here("Forecast_submissions/download_target.R"))
-#source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
+source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
 
 
 
@@ -80,6 +80,7 @@ model_metadata = list(
 
 forecast_date <- Sys.Date()
 noaa_date <- Sys.Date() - lubridate::days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
+
 
 #We're going to get data for all sites relevant to this model, so as to not have to re-load data for the same sites
 site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
@@ -199,7 +200,7 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
     
     
     ### Predict forecasts
-    #  Get 30-day predicted temperature ensemble at the site
+    #  Get 30-day predicted weather ensemble at the site
     noaa_future <- noaa_future_daily%>%
       filter(site_id == site)|>
       drop_na() #dropping NAs necessary for ranger package random forest models to run
@@ -212,8 +213,9 @@ forecast_site <- function(site,noaa_past_mean, noaa_future_daily,target_variable
       mutate(parameter = str_c(parameter, "_",param_set)|>as_factor()|>as.numeric())|>
       #create a new value for unique driverXparameter set combination (ensemble member set)
       mutate(prediction = prediction + rnorm(n(),mean = 0, sd = sqrt(err_var))) 
-    # if aquatics - norm fine, if beetles/ticks, likely need poisson or something
-    #add estimate of process error noise - likely need to vary this for certain variables - abundances, for example
+   
+    #add estimate of process error noise - likely need to vary this for certain variables - abundances especially may go negative, 
+    # but so might other positive-constrained responses like temp, DO 
     forecast <- predictions|> 
       mutate(site_id = site,
              variable = target_variable)|>
@@ -283,4 +285,8 @@ for (theme in model_themes) {
    # neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
   }
 }
+
+
+
+
 
