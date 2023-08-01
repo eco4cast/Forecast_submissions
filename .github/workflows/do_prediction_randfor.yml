@@ -26,6 +26,6 @@ jobs:
         run: Rscript ./Generate_forecasts/tg_randfor/forecast_model.R
       - name: Run automatic prediction file (random forest)
         run: Rscript ./Generate_forecasts/tg_randfor_all_sites/forecast_model.R
-        - name: Run automatic prediction file (random forest)
+      - name: Run automatic prediction file (random forest)
         run: Rscript ./Generate_forecasts/tg_randfor_parmens/forecast_model.R
 
