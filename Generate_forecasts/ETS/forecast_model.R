@@ -84,8 +84,8 @@ forecast_site <- function(site, target_variable, horiz,step) {
     fit = ets(ts_data_interp)
     
     # use the model to forecast target variable
-    forecast_raw <- as.data.frame(forecast(fit,h=h))%>%
-      mutate(sigma = `Hi 95`-`Point Forecast`)
+    forecast_raw <- as.data.frame(forecast(fit,h=h,level=0.68))%>% #One SD
+      mutate(sigma = `Hi 68`-`Point Forecast`)
     
     forecast = data.frame(datetime = (1:h)*step+max(site_target$datetime),
                           reference_datetime = Sys.Date(),
