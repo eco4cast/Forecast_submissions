@@ -68,7 +68,9 @@ generate_tg_forecast <- function(forecast_date,
                           noaa_future_daily,
                           target,
                           horiz,
-                          step)
+                          step,
+                          theme,
+                          forecast_date)
       
       if(theme %in% c("beetles","ticks")){
         forecast = forecast%>% filter(wday(datetime, label=TRUE)=="Mon") #The beetles and ticks challenges only want weekly forecasts

@@ -6,7 +6,9 @@ run_all_vars = function(var,
                         noaa_future_daily,
                         target,
                         horiz,
-                        step) {
+                        step,
+                        theme,
+                        forecast_date) {
   
   message(paste0("Running variable: ", var))
   forecast <- map_dfr(sites,
@@ -16,6 +18,8 @@ run_all_vars = function(var,
                       var,
                       target,
                       horiz,
-                      step)
+                      step,
+                      theme,
+                      forecast_date)
   
 }
