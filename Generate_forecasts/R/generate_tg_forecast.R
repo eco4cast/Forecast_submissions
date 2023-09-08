@@ -1,7 +1,8 @@
 generate_tg_forecast <- function(forecast_date,
                                  forecast_model,
                                  model_themes = model_themes,
-                                 model_id = model_id) {
+                                 model_id = model_id,
+                                 all_sites = F) {
   #### Step 1: Define model_themes and types
   model_types = model_themes
   #Replace terrestrial daily and 30min with terrestrial
@@ -60,17 +61,30 @@ generate_tg_forecast <- function(forecast_date,
       #  facet_wrap(~variable, scales = "free")
       
       # Run all sites -- may be slow!
-      forecast <- map_dfr(vars,
-                          run_all_vars,
-                          sites,
-                          forecast_model,
-                          noaa_past_mean,
-                          noaa_future_daily,
-                          target,
-                          horiz,
-                          step,
-                          theme,
-                          forecast_date)
+      if(all_sites == F) {
+        forecast <- map_dfr(vars,
+                            run_all_vars,
+                            sites,
+                            forecast_model,
+                            noaa_past_mean,
+                            noaa_future_daily,
+                            target,
+                            horiz,
+                            step,
+                            theme,
+                            forecast_date)
+      } else {
+        forecast <- map_dfr(vars,
+                            forecast_model,
+                            sites,
+                            noaa_past_mean,
+                            noaa_future_daily,
+                            target,
+                            horiz,
+                            step,
+                            theme,
+                            forecast_date)
+      }
       
       if(theme %in% c("beetles","ticks")){
         forecast = forecast%>% filter(wday(datetime, label=TRUE)=="Mon") #The beetles and ticks challenges only want weekly forecasts
