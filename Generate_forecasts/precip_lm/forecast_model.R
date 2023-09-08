@@ -26,7 +26,8 @@ model_id = "tg_precip_lm"
 forecast_model <- function(site,
                            noaa_past_mean,
                            noaa_future_daily,
-                           target_variable) {
+                           target_variable,
+                           target) {
   
   message(paste0("Running site: ", site))
 
@@ -107,10 +108,12 @@ for (theme in model_themes) {
     
     forecast_date <- missed_dates[i]
     # Generate the forecasts
-    generate_tg_forecast(forecast_date = forecast_date,
-                         forecast_model = forecast_model,
-                         model_themes = theme,
-                         model_id = model_id)
+    tryCatch({
+      generate_tg_forecast(forecast_date = forecast_date,
+                           forecast_model = forecast_model,
+                           model_themes = theme,
+                           model_id = model_id)
+    }, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
     
     # Submit forecast!
     #neon4cast::submit(forecast_file = file.path('Forecasts', fARIMA_file),
