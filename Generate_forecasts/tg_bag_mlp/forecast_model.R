@@ -22,9 +22,9 @@ library(magrittr)
 here::i_am("Forecast_submissions/Generate_forecasts/tg_bag_mlp/forecast_model.R")
 source(here("Forecast_submissions/download_target.R"))
 source(here("Forecast_submissions/ignore_sigpipe.R"))  #might fail locally, but necessary for git actions to exit properly or something
-source("generate_forecasts/R/load_met.R")
-source("generate_forecasts/R/generate_tg_forecast.R")
-source("generate_forecasts/R/run_all_vars.R")
+source("./Generate_forecasts/R/load_met.R")
+source("./Generate_forecasts/R/generate_tg_forecast.R")
+source("./Generate_forecasts/R/run_all_vars.R")
 
 model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #By default, run model across all themes, except terrestrial 30min (not currently configured)
 model_id = "tg_bag_mlp"
