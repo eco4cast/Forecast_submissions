@@ -27,7 +27,9 @@ forecast_model <- function(site,
                            noaa_past_mean,
                            noaa_future_daily,
                            target_variable,
-                           target) {
+                           target,
+                           horiz,
+                           step) {
   
   message(paste0("Running site: ", site))
 

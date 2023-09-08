@@ -45,7 +45,7 @@ load_met <- function(forecast_date) {
     pivot_wider(names_from = variable, values_from = prediction) |>
     # convert to Celsius
     mutate(air_temperature = air_temperature - 273.15) |> 
-    select(datetime, site_id, air_temperature, parameter)
+    select(datetime, site_id, all_of(variables), parameter)
   write.csv(noaa_future_daily,paste0("./Generate_forecasts/noaa_downloads/noaa_future_daily_",forecast_date,".csv"),row.names = F) #Save the past meteorology
   
   # Load stage3 data. 

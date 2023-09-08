@@ -29,11 +29,26 @@ generate_tg_forecast <- function(forecast_date,
       sites = site_data$field_site_id
       
       #Set target variables
-      if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
-      if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
-      if(theme == "terrestrial_daily")  {vars = c("nee","le")}
-      if(theme == "beetles")            {vars = c("abundance","richness")}
-      if(theme == "ticks")              {vars = c("amblyomma_americanum")}
+      if(type == "aquatics")           {vars = c("temperature","oxygen","chla")
+      horiz = 30
+      step = 1
+      }
+      if(type == "ticks")              {vars = c("amblyomma_americanum")
+      horiz = 52 #52 weeks
+      step = 7
+      }
+      if(type == "phenology")          {vars = c("gcc_90","rcc_90")
+      horiz = 30 
+      step = 1}
+      if(type == "beetles")            {vars = c("abundance","richness")
+      horiz = 52 #52 weeks
+      step = 7}
+      if(theme == "terrestrial_daily")  {vars = c("nee","le")
+      horiz = 30
+      step = 1}
+      if(theme == "terrestrial_30min")  {vars = c("nee","le")
+      horiz = 30
+      step = 1/24/2}
       
       ## Test with a single site first!
       #forecast <- map_dfr(vars,run_all_vars,sites[23],forecast_model,noaa_past_mean,noaa_future_daily)
@@ -45,7 +60,15 @@ generate_tg_forecast <- function(forecast_date,
       #  facet_wrap(~variable, scales = "free")
       
       # Run all sites -- may be slow!
-      forecast <- map_dfr(vars,run_all_vars,sites,forecast_model,noaa_past_mean,noaa_future_daily)
+      forecast <- map_dfr(vars,
+                          run_all_vars,
+                          sites,
+                          forecast_model,
+                          noaa_past_mean,
+                          noaa_future_daily,
+                          target,
+                          horiz,
+                          step)
       
       if(theme %in% c("beetles","ticks")){
         forecast = forecast%>% filter(wday(datetime, label=TRUE)=="Mon") #The beetles and ticks challenges only want weekly forecasts

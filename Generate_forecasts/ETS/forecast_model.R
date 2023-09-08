@@ -1,6 +1,6 @@
 # tg_ets model
 # written by ASL, 21 Jan 2023
-
+# edited 2023-09-08 to consolidate and set up framework for filling in missed dates
 
 
 #### Step 0: load packages
@@ -17,29 +17,21 @@ library(arrow)
 source("download_target.R")
 library(forecast)
 
+source("generate_forecasts/R/load_met.R")
+source("generate_forecasts/R/generate_tg_forecast.R")
+source("generate_forecasts/R/run_all_vars.R")
 
-#### Step 1: Define team name, team members, and theme
-
-team_name <- "EFI Theory"
-
-team_list <- list(list(individualName = list(givenName = "Abby", 
-                                             surName = "Lewis"),
-                       organizationName = "Virginia Tech",
-                       electronicMailAddress = "aslewis@vt.edu")
-)
-
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #By default, run model across all themes, except terrestrial 30min (not currently configured)
 model_id = "tg_ets"
-model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes. I am registered for all three
-model_types = c("terrestrial","aquatics","phenology","beetles","ticks") #Replace terrestrial daily and 30min with terrestrial
-#Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
-
-#### Step 2: Get NOAA driver data
-
-# Skipping this for arima model
-
-#### Step 3.0: Define the forecast model for a site
-forecast_site <- function(site, target_variable, horiz,step) {
+#### Define the forecast model for a site
+forecast_model <- function(site,
+                           noaa_past_mean,
+                           noaa_future_daily,
+                           target_variable,
+                           target,
+                           horiz,
+                           step) {
   
   message(paste0("Running site: ", site))
   
@@ -102,84 +94,50 @@ forecast_site <- function(site, target_variable, horiz,step) {
   }
 }
 
-#Quick function to repeat for all variables
-run_all_vars = function(var,sites,forecast_site,horiz,step){
-  
-  message(paste0("Running variable: ", var))
-  forecast <- map_dfr(sites,forecast_site,var,horiz,step)
-  
-}
+generate_tg_forecast(forecast_date = Sys.Date(),
+                     forecast_model = forecast_model,
+                     model_themes = model_themes,
+                     model_id = model_id)
 
-### AND HERE WE GO! We're ready to start forecasting ### 
+### Some code to fill in missing forecasts
+# Dates of forecasts 
+end_date <- paste(Sys.Date() - days(2), '00:00:00') #Yesterday's forecasts might not have been processed. Wait to redo
+challenge_s3_region <- "data"
+challenge_s3_endpoint <- "ecoforecast.org"
+
+# for each theme, check if file is in bucket
 for (theme in model_themes) {
-  if(!theme%in%c("beetles","ticks") | wday(Sys.Date(), label=TRUE)=="Sun"){ #beetles and ticks only want forecasts every Sunday
-    #Step 1: Download latest target data and site description data
-    target = download_target(theme)
-    type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
-    
-    if("siteID" %in% colnames(target)){ #Sometimes the site is called siteID instead of site_id. Fixing here
-      target = target%>%
-        rename(site_id = siteID)
-    }
-    if("time" %in% colnames(target)){ #Sometimes the datetime column is instead labeled "time"
-      target = target%>%
-        rename(datetime = time)
-    }
-    
-    site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
-      filter(get(type)==1)
-    sites = site_data$field_site_id
-    
-    #Set target variables
-    if(type == "aquatics")           {vars = c("temperature","oxygen","chla")
-                                                horiz = 30
-                                                step = 1
-                                                }
-    if(type == "ticks")              {vars = c("amblyomma_americanum")
-                                                horiz = 52 #52 weeks
-                                                step = 7
-                                                }
-    if(type == "phenology")          {vars = c("gcc_90","rcc_90")
-                                                horiz = 30 
-                                                step = 1}
-    if(type == "beetles")            {vars = c("abundance","richness")
-                                                horiz = 52 #52 weeks
-                                                step = 7}
-    if(theme == "terrestrial_daily")  {vars = c("nee","le")
-                                                horiz = 30
-                                                step = 1}
-    if(theme == "terrestrial_30min")  {vars = c("nee","le")
-                                                horiz = 30
-                                                step = 1/24/2}
+  this_year <- data.frame(date = as.character(paste0(seq.Date(as_date('2023-01-01'), to = as_date(end_date), by = 'day'), ' 00:00:00')),
+                          exists = NA)
   
-    ## Test with a single site first!
-    forecast <- map_dfr(vars,run_all_vars,"BLUE",forecast_site,horiz,step)
+  for (i in 1:nrow(this_year)) {
+    forecast_file <- paste0(theme,"-", as_date(this_year$date[i]), '-tg_ets.csv.gz')
     
-    #Visualize the ensemble predictions -- what do you think?
-    #forecast %>%
-    #  pivot_wider(names_from = parameter,values_from = prediction)%>%
-    #  ggplot(aes(x = datetime)) +
-    #  geom_ribbon(aes(ymax = mu + sigma, ymin = mu-sigma))+
-    #  geom_line(aes(y = mu),alpha=0.3) +
-    #  facet_wrap(~variable, scales = "free")
+    this_year$exists[i] <- suppressMessages(aws.s3::object_exists(object = file.path("raw", theme, forecast_file),
+                                                                  bucket = "neon4cast-forecasts",
+                                                                  region = challenge_s3_region,
+                                                                  base_url = challenge_s3_endpoint))
+  }
+  
+  # which dates do you need to generate forecasts for?
+  missed_dates <- this_year |> 
+    filter(exists == F) |> 
+    pull(date) |> 
+    as_date()
+  
+  for (i in 1:length(missed_dates)) {
     
-    # Run all sites -- may be slow!
-    forecast <- map_dfr(vars,run_all_vars,sites,forecast_site,horiz,step)
+    forecast_date <- missed_dates[i]
+    # Generate the forecasts
+    tryCatch({
+      generate_tg_forecast(forecast_date = forecast_date,
+                           forecast_model = forecast_model,
+                           model_themes = theme,
+                           model_id = model_id)
+    }, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
     
-    #Forecast output file name in standards requires for Challenge.
-    # csv.gz means that it will be compressed
-    file_date <- Sys.Date() #forecast$reference_datetime[1]
-    model_id = "tg_ets"
-    forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
-    
-    forecast <- forecast%>%
-      filter(datetime>=file_date)
-    
-    #Write csv to disk
-    write_csv(forecast, forecast_file)
-    
-    # Step 5: Submit forecast!
-    neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
+    # Submit forecast!
+    #neon4cast::submit(forecast_file = file.path('Forecasts', fARIMA_file),
+    #                  ask = F, s3_region = 'data', s3_endpoint = 'ecoforecast.org')
   }
 }
-
