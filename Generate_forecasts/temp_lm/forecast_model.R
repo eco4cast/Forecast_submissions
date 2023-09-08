@@ -1,5 +1,6 @@
 # tg_temp_lm model
 # written by ASL, 21 Jan 2023
+# edited 2023-09-08 to consolidate and set up framework for filling in missed dates
 
 
 #### Step 0: load packages
@@ -14,103 +15,21 @@ library(tsibble)
 library(fable)
 library(arrow)
 source("download_target.R")
+source("generate_forecasts/R/load_met.R")
+source("generate_forecasts/R/generate_tg_forecast.R")
+source("generate_forecasts/R/run_all_vars.R")
 
-
-
-#### Step 1: Define team name, team members, and theme
-
-team_name <- "EFI Theory"
-
-team_list <- list(list(individualName = list(givenName = "Abby", 
-                                             surName = "Lewis"),
-                       organizationName = "Virginia Tech",
-                       electronicMailAddress = "aslewis@vt.edu")
-)
-
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #By default, run model across all themes, except terrestrial 30min (not currently configured)
 model_id = "tg_temp_lm"
-model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #Run model across all themes, except terrestrial 30min (not currently configured)
-model_types = c("terrestrial","aquatics","phenology","beetles","ticks") #Replace terrestrial daily and 30min with terrestrial
-#Options: aquatics, beetles, phenology, terrestrial_30min, terrestrial_daily, ticks
 
-
-#### Step 2: Get NOAA driver data
-
-forecast_date <- Sys.Date()
-noaa_date <- Sys.Date() - lubridate::days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
-
-#We're going to get data for all sites relevant to this model, so as to not have to re-load data for the same sites
-site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
-  filter(if_any(matches(model_types),~.==1))
-all_sites = site_data$field_site_id
-
-#Specify desired met variables
-variables <- c('air_temperature')
-
-#Code from Freya Olsson to download and format meteorological data (had to be modified to deal with arrow issue on M1 mac). Major thanks to Freya here!!
-
-# Load stage 2 data
-endpoint = "data.ecoforecast.org"
-use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
-use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
-noaa_future <- arrow::open_dataset(use_s3) |>
-  dplyr::collect() |>
-  dplyr::filter(site_id %in% all_sites,
-                datetime >= forecast_date,
-                variable == variables) #It would be more efficient to filter before collecting, but this is not running on my M1 mac
-
-# Format met forecasts
-noaa_future_daily <- noaa_future |> 
-  mutate(datetime = lubridate::as_date(datetime)) |> 
-  # mean daily forecasts at each site per ensemble
-  group_by(datetime, site_id, parameter, variable) |> 
-  summarize(prediction = mean(prediction)) |>
-  pivot_wider(names_from = variable, values_from = prediction) |>
-  # convert to Celsius
-  mutate(air_temperature = air_temperature - 273.15) |> 
-  select(datetime, site_id, air_temperature, parameter)
-
-# Load stage3 data. 
-#The bucket is somewhat differently organized here, necessitating a different structure. 
-#This will take a LONG TIME to load, especially if we are running all sites (I estimate 10 min on my computer)
-load_stage3 <- function(site,endpoint,variables){
-  message('run ', site)
-  use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage3/parquet/", site)
-  use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
-  parquet_file <- arrow::open_dataset(use_s3) |>
-    dplyr::collect() |>
-    dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
-                  variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
-    na.omit() |> 
-    mutate(datetime = lubridate::as_date(datetime)) |> 
-    group_by(datetime, site_id, variable) |> 
-    summarize(prediction = mean(prediction, na.rm = TRUE), .groups = "drop") |> 
-    pivot_wider(names_from = variable, values_from = prediction) |> 
-    # convert air temp to C
-    mutate(air_temperature = air_temperature - 273.15)
-}
-
-noaa_past_mean <- map_dfr(all_sites, load_stage3,endpoint,variables)
-write.csv(noaa_past_mean,"./Generate_forecasts/noaa_downloads/past_temp.csv",row.names = F) #Save this so I don't have to rerun met downloads for tg_temp_lm_all_sites
-
-# Plot met
-jpeg("met_forecasts.jpg",width = 10, height = 10, units = "in", res = 300)
-ggplot(noaa_future_daily, aes(x=datetime, y=air_temperature)) +
-  geom_line(aes(group = parameter), alpha = 0.4)+
-  geom_line(data = noaa_past_mean, colour = 'darkblue') +
-  coord_cartesian(xlim = c(noaa_date - lubridate::days(60),
-                           noaa_date + lubridate::days(35)))+
-  facet_wrap(~site_id, scales = 'free')
-dev.off()
-
-
-
-#### Step 3.0: Define the forecast model for a site
-forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable) {
+#### Define the forecast model for a site
+forecast_model <- function(site,
+                           noaa_past_mean,
+                           noaa_future_daily,
+                           target_variable) {
+  
   message(paste0("Running site: ", site))
-  
-  # Get site information for elevation
-  site_info <- site_data |> dplyr::filter(field_site_id == site) #not currently using, but may be relevant to other models
-  
+
   # Merge in past NOAA data into the targets file, matching by date.
   site_target <- target |>
     dplyr::select(datetime, site_id, variable, observation) |>
@@ -129,10 +48,10 @@ forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable)
     return()
     
   } else {
-    # Fit linear model based on past data: water temperature = m * air temperature + b
+    # Fit linear model based on past data: target = m * air temp + b
     fit <- lm(get(target_variable) ~ air_temperature, data = site_target) #THIS IS THE MODEL
     
-    #  Get 30-day predicted temperature ensemble at the site
+    #  Get 30-day predicted temp ensemble at the site
     noaa_future <- noaa_future_daily%>%
       filter(site_id==site)
     
@@ -153,70 +72,48 @@ forecast_site <- function(site,noaa_past_mean,noaa_future_daily,target_variable)
   }
 }
 
-#Quick function to repeat for all variables
-run_all_vars = function(var,sites,forecast_site,noaa_past_mean,noaa_future_daily){
-  
-  message(paste0("Running variable: ", var))
-  forecast <- map_dfr(sites,forecast_site,noaa_past_mean,noaa_future_daily,var)
-  
-}
+generate_tg_forecast(forecast_date = Sys.Date(),
+                     forecast_model = forecast_model,
+                     model_themes = model_themes,
+                     model_id = model_id)
 
-### AND HERE WE GO! We're ready to start forecasting ### 
+### Some code to fill in missing forecasts
+# Dates of forecasts 
+end_date <- paste(Sys.Date() - days(2), '00:00:00') #Yesterday's forecasts might not have been processed. Wait to redo
+challenge_s3_region <- "data"
+challenge_s3_endpoint <- "ecoforecast.org"
+
+# for each theme, check if file is in bucket
 for (theme in model_themes) {
-  if(!theme%in%c("beetles","ticks") | wday(Sys.Date(), label=TRUE)=="Sun"){ #beetles and ticks only want forecasts every Sunday
-    #Step 1: Download latest target data and site description data
-    target = download_target(theme)
-    type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
-    
-    if("siteID" %in% colnames(target)){ #Sometimes the site is called siteID instead of site_id. Fixing here
-      target = target%>%
-        rename(site_id = siteID)
-    }
-    if("time" %in% colnames(target)){ #Sometimes the time column is instead labeled "datetime"
-      target = target%>%
-        rename(datetime = time)
-    }
-    
-    site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
-      filter(get(type)==1)
-    sites = site_data$field_site_id
-    
-    #Set target variables
-    if(theme == "aquatics")           {vars = c("temperature","oxygen","chla")}
-    if(theme == "phenology")          {vars = c("gcc_90","rcc_90")}
-    if(theme == "terrestrial_daily")  {vars = c("nee","le")}
-    if(theme == "beetles")            {vars = c("abundance","richness")}
-    if(theme == "ticks")              {vars = c("amblyomma_americanum")}
+  this_year <- data.frame(date = as.character(paste0(seq.Date(as_date('2023-01-01'), to = as_date(end_date), by = 'day'), ' 00:00:00')),
+                          exists = NA)
   
-    ## Test with a single site first!
-    #forecast <- map_dfr(vars,run_all_vars,sites[23],forecast_site,noaa_past_mean,noaa_future_daily)
+  for (i in 1:nrow(this_year)) {
+    forecast_file <- paste0(theme,"-", as_date(this_year$date[i]), '-tg_temp_lm.csv.gz')
     
-    #Visualize the ensemble predictions -- what do you think?
-    #forecast |> 
-    #  ggplot(aes(x = datetime, y = prediction, group = parameter)) +
-    #  geom_line(alpha=0.3) +
-    #  facet_wrap(~variable, scales = "free")
+    this_year$exists[i] <- suppressMessages(aws.s3::object_exists(object = file.path("raw", theme, forecast_file),
+                                                                  bucket = "neon4cast-forecasts",
+                                                                  region = challenge_s3_region,
+                                                                  base_url = challenge_s3_endpoint))
+  }
+  
+  # which dates do you need to generate forecasts for?
+  missed_dates <- this_year |> 
+    filter(exists == F) |> 
+    pull(date) |> 
+    as_date()
+  
+  for (i in 1:length(missed_dates)) {
     
-    # Run all sites -- may be slow!
-    forecast <- map_dfr(vars,run_all_vars,sites,forecast_site,noaa_past_mean,noaa_future_daily)
+    forecast_date <- missed_dates[i]
+    # Generate the forecasts
+    generate_tg_forecast(forecast_date = forecast_date,
+                         forecast_model = forecast_model,
+                         model_themes = theme,
+                         model_id = model_id)
     
-    if(theme %in% c("beetles","ticks")){
-      forecast = forecast%>% filter(wday(datetime, label=TRUE)=="Mon") #The beetles and ticks challenges only want weekly forecasts
-    }
-    
-    #Forecast output file name in standards requires for Challenge.
-    # csv.gz means that it will be compressed
-    file_date <- Sys.Date() #forecast$reference_datetime[1]
-    model_id = "tg_temp_lm"
-    forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
-    
-    #Write csv to disk
-    write_csv(forecast, forecast_file)
-    
-    #Generate metadata
-    #metadata_file <- neon4cast::generate_metadata(forecast_file, team_list, model_metadata) #Function is not currently available
-    
-    # Step 5: Submit forecast!
-    neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
+    # Submit forecast!
+    #neon4cast::submit(forecast_file = file.path('Forecasts', fARIMA_file),
+    #                  ask = F, s3_region = 'data', s3_endpoint = 'ecoforecast.org')
   }
 }
