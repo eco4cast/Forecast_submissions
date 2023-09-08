@@ -17,9 +17,9 @@ library(arrow)
 source("download_target.R")
 library(forecast)
 
-source("generate_forecasts/R/load_met.R")
-source("generate_forecasts/R/generate_tg_forecast.R")
-source("generate_forecasts/R/run_all_vars.R")
+source("./Generate_forecasts/R/load_met.R")
+source("./Generate_forecasts/R/generate_tg_forecast.R")
+source("./Generate_forecasts/R/run_all_vars.R")
 
 model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #By default, run model across all themes, except terrestrial 30min (not currently configured)
 model_id = "tg_ets"
