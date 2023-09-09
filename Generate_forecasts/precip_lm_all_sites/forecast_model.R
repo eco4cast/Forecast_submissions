@@ -77,11 +77,14 @@ forecast_model <- function(target_variable,
   }
 }
 
-generate_tg_forecast(forecast_date = Sys.Date(),
-                     forecast_model = forecast_model,
-                     model_themes = model_themes,
-                     model_id = model_id,
-                     all_sites = T)
+#Even if forecast generation does not work today, we want to run the gap filling procedure below
+tryCatch({
+  generate_tg_forecast(forecast_date = Sys.Date(),
+                       forecast_model = forecast_model,
+                       model_themes = model_themes,
+                       model_id = model_id,
+                       all_sites = T)
+}, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
 
 ### Some code to fill in missing forecasts
 # Dates of forecasts 
