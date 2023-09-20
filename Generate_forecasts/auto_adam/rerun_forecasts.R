@@ -9,8 +9,8 @@ challenge_s3_endpoint <- "ecoforecast.org"
 # for each theme, check if file is in bucket
 this_year <- data.frame(date = as.character(paste0(seq.Date(as_date('2023-01-01'), 
                                                             to = as_date(end_date), 
-                                                            by = 'day'), ' 00:00:00'))
-                        )
+                                                            by = 'day'), 
+                                                   ' 00:00:00')))
 
 for (theme in model_themes) {
   for (i in 1:nrow(this_year)) {
@@ -28,7 +28,8 @@ missed_dates <- this_year
 # any days that do not have all themes
 missed_dates <- missed_dates[!rowSums(missed_dates[model_themes])==length(model_themes),]
 # generate theme names
-missed_dates$themes <- apply(missed_dates[-1], 1, function(x) names(which(!x)))
+themes <- apply(missed_dates[-1], 1, function(x) list(names(which(!x))))
+missed_dates$themes <- themes
 
 for (i in 1:nrow(missed_dates)) {
   

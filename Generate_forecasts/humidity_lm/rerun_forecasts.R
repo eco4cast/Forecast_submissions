@@ -28,7 +28,8 @@ missed_dates <- this_year
 # any days that do not have all themes
 missed_dates <- missed_dates[!rowSums(missed_dates[model_themes])==length(model_themes),]
 # generate theme names
-missed_dates$themes <- apply(missed_dates[-1], 1, function(x) names(which(!x)))
+themes <- apply(missed_dates[-1], 1, function(x) list(names(which(!x))))
+missed_dates$themes <- themes
 
 for (i in 1:nrow(missed_dates)) {
   
