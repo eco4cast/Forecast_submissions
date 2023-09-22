@@ -33,15 +33,17 @@ missed_dates$themes <- themes
 
 for (i in 1:nrow(missed_dates)) {
   
-  forecast_date <- missed_dates$date[i]
+  forecast_date <- missed_dates$date[[i]]
+  forecast_themes <- missed_dates$theme[[i]]
   
-  message(paste0("Running forecasts for ", forecast_date,". Themes: ", missed_dates$theme[[i]]))
-  # Generate the forecasts
-  tryCatch({
-    generate_tg_forecast(forecast_date = forecast_date,
-                         forecast_model = forecast_model,
-                         model_themes = missed_dates$theme[[i]],
-                         model_id = model_id,
-                         all_sites = T)
-  }, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
+  if(!identical(forecast_theme, c("beetles","ticks")) | wday(forecast_date, label=TRUE)=="Sun"){
+    message(paste0("Running forecasts for ", forecast_date,". Themes: ", forecast_themes))
+    # Generate the forecasts
+    tryCatch({
+      generate_tg_forecast(forecast_date = forecast_date,
+                           forecast_model = forecast_model,
+                           model_themes = forecast_themes,
+                           model_id = model_id)
+    }, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
+  }
 }
