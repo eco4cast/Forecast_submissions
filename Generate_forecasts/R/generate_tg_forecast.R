@@ -10,7 +10,7 @@ generate_tg_forecast <- function(forecast_date,
   
   #### Step 2: Get NOAA driver data
   forecast_date <- as.Date(forecast_date)
-  load_met(forecast_date) #This fuction loads meteorology if and only if it does not already exist
+  load_met(forecast_date) #This function loads meteorology if and only if it does not already exist
   noaa_future_daily <- read.csv(paste0("./Generate_forecasts/noaa_downloads/noaa_future_daily_",forecast_date,".csv")) |> 
     mutate(datetime = lubridate::as_date(datetime))
   

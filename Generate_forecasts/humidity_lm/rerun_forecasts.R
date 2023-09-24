@@ -34,7 +34,7 @@ missed_dates$themes <- themes
 for (i in 1:nrow(missed_dates)) {
   
   forecast_date <- missed_dates$date[[i]]
-  forecast_themes <- missed_dates$theme[[i]]
+  forecast_themes <- missed_dates$themes[[i]][[1]]
   
   if(!identical(forecast_themes, c("beetles","ticks")) | wday(forecast_date, label=TRUE)=="Sun"){
     message(paste0("Running forecasts for ", forecast_date,". Themes: ", forecast_themes))
