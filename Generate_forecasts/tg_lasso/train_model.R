@@ -63,6 +63,7 @@ load_stage3 <- function(site,endpoint,variables){
   use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
   parquet_file <- arrow::open_dataset(use_s3) |>
     dplyr::collect() |>
+    dplyr::filter(parameter <= 31)|>
     dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
                   variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
     na.omit() |> 
