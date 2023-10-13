@@ -30,8 +30,8 @@ model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 
 #### Step 2: Get NOAA driver data
 
-forecast_date <- Sys.Date()
-noaa_date <- Sys.Date() - lubridate::days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
+
+#noaa_date <- Sys.Date() - lubridate::days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
 site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
   filter(if_any(matches(model_types),~.==1))
 all_sites = site_data$field_site_id
@@ -51,9 +51,10 @@ variables <- c('air_temperature',
 #Code from Freya Olsson to download and format meteorological data (had to be modified to deal with arrow issue on M1 mac). Major thanks to Freya here!!
 
 # Load stage 3 data
-noaa_date <- Sys.Date() - lubridate::days(1)
+#noaa_date <- Sys.Date() - lubridate::days(1) #if we wanted training to include most recent data
+last_training_date <- as_date("2022-12-31")
 endpoint = "data.ecoforecast.org"
-use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
+#use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
 
 
 
@@ -65,6 +66,7 @@ load_stage3 <- function(site,endpoint,variables){
     dplyr::collect() |>
     dplyr::filter(parameter <= 31)|>
     dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
+                  datetime <= last_training_date,
                   variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
     na.omit() |> 
     mutate(datetime = lubridate::as_date(datetime)) |> 
@@ -120,8 +122,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       step_rm(c("datetime", "site_id"))|>
       update_role(everything(), new_role = "predictor")|>
       update_role({{target_variable}}, new_role = "outcome")|>
-      step_normalize(all_numeric(), -all_outcomes())|>
-      step_naomit(all_outcomes(),all_numeric_predictors(), skip = TRUE)
+      step_normalize(all_numeric(), -all_outcomes())
     
     ## Set up tuning and fitting engine
     lambda_grid <- grid_regular(penalty(), levels = 100) #column of penalties evenly spread from 1e-10 to 1
@@ -169,14 +170,16 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       bundle()
     
     saveRDS(res_bundle, here(paste0("Forecast_submissions/Generate_forecasts/tg_lasso/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-    tibble(theme = theme, site = site, n_obs = nrow(site_target), target_variable = target_variable, rmse = final_rmse$.estimate, lambda = best_lasso$penalty)
+    tibble(theme = theme, site = site, n_obs = nrow(site_target), target_variable = target_variable, 
+           rmse = final_rmse$.estimate, lambda = best_lasso$penalty, last_targets_date = last_training_date)
+    #
     
   }
 }
 
 
 ######### Loop to train all sites ########
-
+theme <- "aquatics"
 for (theme in model_themes) {
   target = download_target(theme)
   type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
@@ -191,7 +194,7 @@ for (theme in model_themes) {
   }
   
   site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv")|>
-    filter(get(type)==1) #filters the temperature
+    filter(get(type)==1) 
   
   sites = site_data$field_site_id
   
@@ -204,7 +207,7 @@ for (theme in model_themes) {
   
   site_var_combos <- expand_grid(vars, sites)|>
     rename(site = "sites", target_variable = "vars")
-    #filter(site == "KING"|site == "ABBY") for testing - 1 aq site and 1 terr site
+    #filter(site == "KING"|site == "ABBY") #for testing - 1 aq site and 1 terr site
   
 
   mod_summaries <- map2(site_var_combos$site, site_var_combos$target_variable, possibly(
