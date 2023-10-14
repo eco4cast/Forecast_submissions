@@ -1,5 +1,7 @@
 source("./Generate_forecasts/precip_lm_all_sites/forecast_model.R")
 
+END <- as_date('2023-10-10') #Re-run if forecasts have not been re-run after Oct 10, fixing meteorology issue
+
 ### Some code to fill in missing forecasts
 # Dates of forecasts 
 end_date <- paste(Sys.Date() - days(2), '00:00:00') #Yesterday's forecasts might not have been processed. Wait to redo
