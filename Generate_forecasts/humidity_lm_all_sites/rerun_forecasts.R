@@ -14,17 +14,30 @@ this_year <- data.frame(date = as.character(paste0(seq.Date(as_date('2023-01-01'
 
 for (theme in model_themes) {
   for (i in 1:nrow(this_year)) {
-    forecast_file <- paste0(theme,"-", as_date(this_year$date[i]), '-tg_temp_lm.csv.gz')
+    forecast_file <- paste0(theme,"-", as_date(this_year$date[i]), '-tg_temp_lm_all_sites.csv.gz')
     
     this_year[i,theme] <- suppressMessages(aws.s3::object_exists(object = file.path("raw", theme, forecast_file),
                                                                   bucket = "neon4cast-forecasts",
                                                                   region = challenge_s3_region,
                                                                   base_url = challenge_s3_endpoint))
+    if (this_year[i,theme]) {
+      modified <- attr(suppressMessages(aws.s3::head_object(object = file.path("raw", theme, forecast_file),
+                                                            bucket = "neon4cast-forecasts",
+                                                            region = challenge_s3_region,
+                                                            base_url = challenge_s3_endpoint)), 
+                       "last-modified")
+      
+      this_year[i,theme] <- ifelse(parse_date_time(gsub('GMT', '', str_split_1(modified, ', ')[2]),
+                                                   orders = "%d %b %Y %H:%M:%S") >= END, 
+                                   T, F)
+    }
   }
 }
 
 # which dates do you need to generate forecasts for?
 missed_dates <- this_year
+# don't need to run ticks and beetles except on Sunday
+missed_dates[wday(missed_dates$date, label=TRUE) != "Sun", c("ticks", "beetles")] <- T
 # any days that do not have all themes
 missed_dates <- missed_dates[!rowSums(missed_dates[model_themes])==length(model_themes),]
 # generate theme names
@@ -36,14 +49,14 @@ for (i in 1:nrow(missed_dates)) {
   forecast_date <- missed_dates$date[[i]]
   forecast_themes <- missed_dates$themes[[i]][[1]]
   
-  if(!identical(forecast_themes, c("beetles","ticks")) | wday(forecast_date, label=TRUE)=="Sun"){
-    message(paste0("Running forecasts for ", forecast_date,". Themes: ", forecast_themes))
-    # Generate the forecasts
-    tryCatch({
-      generate_tg_forecast(forecast_date = forecast_date,
-                           forecast_model = forecast_model,
-                           model_themes = forecast_themes,
-                           model_id = model_id)
-    }, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
-  }
+  message(paste0("Running forecasts for: ", as.Date(forecast_date),
+                 ".\nThemes: ", paste0(forecast_themes, collapse = ", "), "."))
+  # Generate the forecasts
+  tryCatch({
+    generate_tg_forecast(forecast_date = forecast_date,
+                         forecast_model = forecast_model,
+                         model_themes = forecast_themes,
+                         model_id = model_id,
+                         all_sites = T)
+  }, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
 }

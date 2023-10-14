@@ -60,7 +60,8 @@ forecast_model <- function(site,
     
     #  Get 30-day predicted humidity ensemble at the site
     noaa_future <- noaa_future_daily%>%
-      filter(site_id==site)
+      filter(site_id==site,
+             parameter <= 31)
     
     # use the linear model (predict.lm) to forecast target variable for each ensemble member
     forecast <- 
