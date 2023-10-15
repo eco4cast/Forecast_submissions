@@ -177,7 +177,6 @@ run_all_vars = function(var,sites,forecast_site,noaa_future_daily){
   
 }
 
-
 for (theme in model_themes) {
   if(!theme%in%c("beetles","ticks") | wday(Sys.Date(), label=TRUE)=="Sun"){ #beetles and ticks only want forecasts every Sunday
     #Step 1: Download latest target data and site description data
@@ -221,6 +220,6 @@ for (theme in model_themes) {
   
   
   # Step 5: Submit forecast!
-  neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
+  neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE) 
   }
 }
