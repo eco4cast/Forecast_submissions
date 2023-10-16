@@ -2,21 +2,27 @@ generate_tg_forecast <- function(forecast_date,
                                  forecast_model,
                                  model_themes = model_themes,
                                  model_id = model_id,
-                                 all_sites = F) {
+                                 all_sites = F,
+                                 noaa = T) {
   #### Step 1: Define model_themes and types
   model_types = model_themes
   #Replace terrestrial daily and 30min with terrestrial
   model_types[model_types %in% c("terrestrial_daily","terrestrial_30min")] <- "terrestrial" 
   
   #### Step 2: Get NOAA driver data
-  forecast_date <- as.Date(forecast_date)
-  load_met(forecast_date) #This function loads meteorology if and only if it does not already exist
-  noaa_future_daily <- read.csv(paste0("./Generate_forecasts/noaa_downloads/noaa_future_daily_",forecast_date,".csv")) |> 
-    mutate(datetime = lubridate::as_date(datetime))
-  
-  # Load stage3 data. 
-  noaa_past_mean <- read.csv(paste0("./Generate_forecasts/noaa_downloads/noaa_past_mean_",forecast_date,".csv")) |> 
-    mutate(datetime = lubridate::as_date(datetime))
+  if(noaa){ #Some forecasts do not use any noaa driver data--> in that case skip download
+    forecast_date <- as.Date(forecast_date)
+    load_met(forecast_date) #This function loads meteorology if and only if it does not already exist
+    noaa_future_daily <- read.csv(paste0("./Generate_forecasts/noaa_downloads/noaa_future_daily_",forecast_date,".csv")) |> 
+      mutate(datetime = lubridate::as_date(datetime))
+    
+    # Load stage3 data. 
+    noaa_past_mean <- read.csv(paste0("./Generate_forecasts/noaa_downloads/noaa_past_mean_",forecast_date,".csv")) |> 
+      mutate(datetime = lubridate::as_date(datetime))
+  } else {
+    noaa_future_daily <- NULL
+    noaa_past_mean <- NULL
+  }
   
   ### AND HERE WE GO! We're ready to start forecasting ### 
   for (theme in model_themes) {
