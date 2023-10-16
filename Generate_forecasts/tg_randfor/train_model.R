@@ -32,8 +32,7 @@ model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
 
 #### Step 2: Get NOAA driver data
 
-forecast_date <- Sys.Date()
-noaa_date <- Sys.Date() - lubridate::days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
+#noaa_date <- Sys.Date() - lubridate::days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
 site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") %>%
   filter(if_any(matches(model_types),~.==1))
 all_sites = site_data$field_site_id
@@ -53,9 +52,10 @@ variables <- c('air_temperature',
 #Code from Freya Olsson to download and format meteorological data (had to be modified to deal with arrow issue on M1 mac). Major thanks to Freya here!!
 
 # Load stage 3 data
-noaa_date <- Sys.Date() - lubridate::days(1)
+#noaa_date <- Sys.Date() - lubridate::days(1)
+last_training_date <- as_date("2022-12-31")
 endpoint = "data.ecoforecast.org"
-use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
+#use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
 
 
 
@@ -67,6 +67,7 @@ load_stage3 <- function(site,endpoint,variables){
     dplyr::collect() |>
     dplyr::filter(parameter <= 31)|>
     dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
+                  datetime <= last_training_date,
                   variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
     na.omit() |> 
     mutate(datetime = lubridate::as_date(datetime)) |> 
@@ -114,7 +115,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     return()
     
   } else {
-    # Tune and fit lasso model - making use of tidymodels
+    # Tune and fit random forest model - making use of tidymodels
     site_target<-site_target|>
       drop_na()
     
@@ -138,6 +139,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     #k-fold cross-validation
     randfor_resamp <- vfold_cv(site_target, v = n_folds, repeats = 5)# define k-fold cross validation procedure 
+   
     ## Assemble workflow and tune
     wf <- workflow() %>%
       add_recipe(rec_base)
@@ -151,7 +153,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
       tune_grid(
       wf %>% add_model(tune_randfor),
       resamples = randfor_resamp,
-      grid = 20 #SET LOW FOR TESTING
+      grid = 20 
     )
     
     ## Select best model via RMSE
@@ -184,7 +186,8 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     
     saveRDS(res_bundle, here(paste0("Forecast_submissions/Generate_forecasts/tg_randfor/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-    tibble(theme = theme, site = site, n_obs = nrow(site_target), n_vfolds = n_folds, target_variable = target_variable, rmse = final_rmse$.estimate, mtry = best_mod$mtry, min_n = best_mod$min_n)|>
+    tibble(theme = theme, site = site, n_obs = nrow(site_target), n_vfolds = n_folds, target_variable = target_variable, rmse = final_rmse$.estimate, 
+           mtry = best_mod$mtry, min_n = best_mod$min_n, last_targets_date = last_training_date)|>
       bind_cols(vip)
     
   }
