@@ -45,8 +45,7 @@ forecast_model <- function(target_variable,
                   site_id %in% sites) |> 
     tidyr::pivot_wider(names_from = "variable", values_from = "observation") |>
     dplyr::left_join(noaa_past_mean%>%
-                       filter(site_id %in% sites,
-                              parameter <= 31), 
+                       filter(site_id %in% sites), 
                      by = c("datetime", "site_id"))
   
   if(sum(!is.na(site_target$air_temperature)&!is.na(site_target[target_variable]))==0){
@@ -60,8 +59,7 @@ forecast_model <- function(target_variable,
     
     #  Get 30-day predicted temperature ensemble at the site
     noaa_future <- noaa_future_daily%>%
-      filter(site_id%in%sites,
-             parameter <= 31)
+      filter(site_id%in%sites)
     
     # use the linear model (predict.lm) to forecast water temperature for each ensemble member
     forecast <- 

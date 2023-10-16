@@ -42,8 +42,7 @@ forecast_model <- function(site,
                   site_id == site) |>
     tidyr::pivot_wider(names_from = "variable", values_from = "observation") |>
     dplyr::left_join(noaa_past_mean%>%
-                       filter(site_id == site,
-                              parameter <= 31), 
+                       filter(site_id == site), 
                      by = c("datetime", "site_id"))
   
   if(!target_variable%in%names(site_target)){
@@ -60,8 +59,7 @@ forecast_model <- function(site,
     
     #  Get 30-day predicted precipitation_flux ensemble at the site
     noaa_future <- noaa_future_daily%>%
-      filter(site_id==site,
-             parameter <= 31)
+      filter(site_id==site)
     
     # use the linear model (predict.lm) to forecast target variable for each ensemble member
     forecast <- 

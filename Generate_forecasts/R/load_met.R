@@ -34,6 +34,7 @@ load_met <- function(forecast_date) {
     dplyr::collect() |>
     dplyr::filter(site_id %in% all_sites,
                   datetime >= forecast_date,
+                  parameter <= 31,
                   variable == variables) #It would be more efficient to filter before collecting, but this is not running on my M1 mac
   
   # Format met forecasts
@@ -57,7 +58,8 @@ load_met <- function(forecast_date) {
     use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
     parquet_file <- arrow::open_dataset(use_s3) |>
       dplyr::collect() |>
-      dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
+      dplyr::filter(parameter <= 31,
+                    datetime >= lubridate::ymd('2017-01-01'),
                     variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
       na.omit() |> 
       mutate(datetime = lubridate::as_date(datetime)) |> 
