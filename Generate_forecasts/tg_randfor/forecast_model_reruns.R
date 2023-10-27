@@ -1,5 +1,5 @@
 # Script ain't meant to automate.
-# only for aquatics forecasts
+# 
 
 #### Step 0: load packages
 library(here)
@@ -79,19 +79,19 @@ model_metadata = list(
 # set dates to rerun forecasts
 #2022-12-31 is last training date
 forecast_dates <- seq(as_date("2023-01-01"), today(), by = "1 day")
-forecast_dates_test <- forecast_dates[1:4]
+
 
 #register parallel and set loop
 cl <- makeCluster(4)
 registerDoParallel(cl)
-foreach(i = 1:length(forecast_dates_test), 
+foreach(i = 1:length(forecast_dates), 
         .packages = c("tidyverse", "tidymodels", "here", "bundle")) %dopar% {
   
 here::i_am("Forecast_submissions/Generate_forecasts/tg_randfor/forecast_model_reruns.R") # must declare inside foreach ex
 source(here("Forecast_submissions/download_target.R"))
 
           #### Step 2: Get NOAA driver data
-forecast_date <- forecast_dates_test[i]
+forecast_date <- forecast_dates[i]
 noaa_date <- forecast_date - lubridate::days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
 
 #We're going to get data for all sites relevant to this model, so as to not have to re-load data for the same sites
@@ -228,13 +228,13 @@ for (theme in model_themes) {
     
     
     #Write csv to disk
-    #write_csv(forecast, forecast_file) # TESTING uncomment this
-    write_csv(forecast, paste0("C:/Users/caleb/Desktop/test_forecasts/",
-                               paste0(theme,"-",file_date,"-",model_id,".csv"))) #TESTING - Delete this
+    write_csv(forecast, forecast_file) 
+    #write_csv(forecast, paste0("C:/Users/caleb/Desktop/test_forecasts/",
+                             #  paste0(theme,"-",file_date,"-",model_id,".csv"))) #TESTING - Delete this
     
     
     # Step 5: Submit forecast!
-    #neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)  TESTING
+    neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
   }
 }
 }#close foreach
