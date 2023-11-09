@@ -14,7 +14,7 @@ this_year <- data.frame(date = as.character(paste0(seq.Date(as_date('2023-01-01'
 
 for (theme in model_themes) {
   for (i in 1:nrow(this_year)) {
-    forecast_file <- paste0(theme,"-", as_date(this_year$date[i]), '-tg_auto_adam_lm.csv.gz')
+    forecast_file <- paste0(theme,"-", as_date(this_year$date[i]), '-tg_auto_adam.csv.gz')
     
     this_year[i,theme] <- suppressMessages(aws.s3::object_exists(object = file.path("raw", theme, forecast_file),
                                                                   bucket = "neon4cast-forecasts",
