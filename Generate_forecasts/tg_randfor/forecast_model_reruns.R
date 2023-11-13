@@ -1,5 +1,5 @@
 # Script ain't meant to automate.
-# 
+
 
 #### Step 0: load packages
 library(here)
@@ -229,8 +229,6 @@ for (theme in model_themes) {
     
     #Write csv to disk
     write_csv(forecast, forecast_file) 
-    #write_csv(forecast, paste0("C:/Users/caleb/Desktop/test_forecasts/",
-                             #  paste0(theme,"-",file_date,"-",model_id,".csv"))) #TESTING - Delete this
     
     
     # Step 5: Submit forecast!
