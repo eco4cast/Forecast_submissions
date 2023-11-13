@@ -40,7 +40,8 @@ forecast_model <- function(site,
   site_target_raw <- target |>
     dplyr::select(datetime, site_id, variable, observation) |>
     dplyr::filter(variable == target_variable, 
-                  site_id == site) |> 
+                  site_id == site,
+                  datetime < forecast_date) |> 
     tidyr::pivot_wider(names_from = "variable", values_from = "observation")
   
   if(!target_variable%in%names(site_target_raw)||sum(!is.na(site_target_raw[target_variable]))==0){
@@ -74,7 +75,7 @@ forecast_model <- function(site,
       mutate(sigma = `Hi 68`-`Point Forecast`)
     
     forecast = data.frame(datetime = (1:h)*step+max(site_target$datetime),
-                          reference_datetime = Sys.Date(),
+                          reference_datetime = forecast_date,
                           site_id = site,
                           family = "normal",
                           variable = target_variable,

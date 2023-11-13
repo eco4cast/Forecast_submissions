@@ -163,7 +163,7 @@ for (theme in model_themes) {
     }
     #Forecast output file name in standards requires for Challenge.
     # csv.gz means that it will be compressed
-    file_date <- Sys.Date() #forecast$reference_datetime[1]
+    file_date <- forecast_date
     model_id = "tg_bag_mlp_all_sites"
     forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
     

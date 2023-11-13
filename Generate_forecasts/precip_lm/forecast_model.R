@@ -39,7 +39,8 @@ forecast_model <- function(site,
   site_target <- target |>
     dplyr::select(datetime, site_id, variable, observation) |>
     dplyr::filter(variable %in% c(target_variable), 
-                  site_id == site) |>
+                  site_id == site,
+                  datetime < forecast_date) |>
     tidyr::pivot_wider(names_from = "variable", values_from = "observation") |>
     dplyr::left_join(noaa_past_mean%>%
                        filter(site_id == site), 
