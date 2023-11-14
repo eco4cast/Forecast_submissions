@@ -55,12 +55,12 @@ forecast_model <- function(site,
         filter(wday(datetime,label = T)=="Mon")|>
         complete(datetime = full_seq(datetime,step),site_id)
       #Find the most recent Monday
-      mon = Sys.Date()-abs(1-as.numeric(strftime(Sys.Date(), "%u")))
+      mon = forecast_date-abs(1-as.numeric(strftime(forecast_date, "%u")))
       h = as.numeric(floor((mon-max(site_target$datetime))/step)+horiz)
     } else {
       site_target = site_target_raw |>
         complete(datetime = full_seq(datetime,1),site_id)
-      h = as.numeric(Sys.Date()-max(site_target$datetime)+horiz)
+      h = as.numeric(forecast_date-max(site_target$datetime)+horiz)
     }
     
     # Fit arima model
