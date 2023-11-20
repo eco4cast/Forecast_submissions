@@ -59,6 +59,7 @@ for (i in 1:nrow(missed_dates)) {
     generate_tg_forecast(forecast_date = forecast_date,
                          forecast_model = forecast_model,
                          model_themes = forecast_themes,
-                         model_id = model_id)
+                         model_id = model_id,
+                         noaa = F)
   }, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
 }
