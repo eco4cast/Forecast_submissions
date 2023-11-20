@@ -53,7 +53,7 @@ load_met <- function(forecast_date) {
   #The bucket is somewhat differently organized here, necessitating a different structure. 
   #This will take a LONG TIME to load, especially if we are running all sites (I estimate 10 min on my computer)
   load_stage3 <- function(site,endpoint,variables){
-    message('run ', site)
+    message('laod met for ', site)
     use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage3/parquet/", site)
     use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
     parquet_file <- arrow::open_dataset(use_s3) |>
