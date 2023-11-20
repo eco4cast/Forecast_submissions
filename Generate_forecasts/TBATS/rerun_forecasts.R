@@ -49,10 +49,10 @@ missed_dates$themes <- themes
 
 for (i in 1:nrow(missed_dates)) {
   
-  forecast_date <- missed_dates$date[[i]]
+  forecast_date <- as.Date(missed_dates$date[[i]])
   forecast_themes <- missed_dates$themes[[i]][[1]]
   
-  message(paste0("Running forecasts for: ", as.Date(forecast_date),
+  message(paste0("Running forecasts for: ", forecast_date,
                  ".\nThemes: ", paste0(forecast_themes, collapse = ", "), "."))
   # Generate the forecasts
   tryCatch({
