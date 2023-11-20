@@ -20,6 +20,7 @@ generate_tg_forecast <- function(forecast_date,
     noaa_past_mean <- read.csv(paste0("./Generate_forecasts/noaa_downloads/noaa_past_mean_",forecast_date,".csv")) |> 
       mutate(datetime = lubridate::as_date(datetime))
   } else {
+    forecast_date <- as.Date(forecast_date)
     noaa_future_daily <- NULL
     noaa_past_mean <- NULL
   }
