@@ -71,26 +71,26 @@ generate_tg_forecast <- function(forecast_date,
       if(all_sites == F) {
         forecast <- map_dfr(vars,
                             run_all_vars,
-                            sites,
-                            forecast_model,
-                            noaa_past_mean,
-                            noaa_future_daily,
-                            target,
-                            horiz,
-                            step,
-                            theme,
-                            forecast_date)
+                            sites = sites,
+                            forecast_model = forecast_model,
+                            noaa_past_mean = noaa_past_mean,
+                            noaa_future_daily = noaa_future_daily,
+                            target = target,
+                            horiz = horiz,
+                            step = step,
+                            theme = theme,
+                            forecast_date = forecast_date)
       } else {
         forecast <- map_dfr(vars,
                             forecast_model,
-                            sites,
-                            noaa_past_mean,
-                            noaa_future_daily,
-                            target,
-                            horiz,
-                            step,
-                            theme,
-                            forecast_date)
+                            sites = sites,
+                            noaa_past_mean = noaa_past_mean,
+                            noaa_future_daily = noaa_future_daily,
+                            target = target,
+                            horiz = horiz,
+                            step = step,
+                            theme = theme,
+                            forecast_date = forecast_date)
       }
       
       if(theme %in% c("beetles","ticks")){
