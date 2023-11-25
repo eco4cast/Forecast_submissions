@@ -1,7 +1,7 @@
 on:
-  workflow_dispatch:
-  schedule:
-  - cron: "0 20 * * *"
+#  workflow_dispatch:
+#  schedule:
+#  - cron: "0 20 * * *"
 #  push:
 
 
@@ -11,17 +11,17 @@ jobs:
     container:
       image: eco4cast/rocker-neon4cast
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: install R packages
-        run: R -e 'source("install.R")'
-      - name: install extra R packages
-        run: R -e 'install.packages(c("tidymodels", "bundle", "ranger"))'
+#      - name: Checkout repo
+#        uses: actions/checkout@v3
+#        with:
+#          fetch-depth: 0
+#      - name: install R packages
+#        run: R -e 'source("install.R")'
+#      - name: install extra R packages
+#        run: R -e 'install.packages(c("tidymodels", "bundle", "ranger"))'
 # Point to the right path, run the right Rscript command
-      - name: Run automatic prediction file (bag map)
-        run: Rscript ./Generate_forecasts/tg_bag_mlp/forecast_model.R
-      - name: Run automatic prediction file (bag map all sites)
-        run: Rscript ./Generate_forecasts/tg_bag_mlp_all_sites/forecast_model.R
+#      - name: Run automatic prediction file (bag map)
+#        run: Rscript ./Generate_forecasts/tg_bag_mlp/forecast_model.R
+#      - name: Run automatic prediction file (bag map all sites)
+#        run: Rscript ./Generate_forecasts/tg_bag_mlp_all_sites/forecast_model.R
 
