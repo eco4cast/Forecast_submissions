@@ -148,7 +148,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     ## Select best model via RMSE
     best_lasso<-lasso_grid|>
-      select_best("rmse")
+      select_best(metric = "rmse")
     
     #select model with best tuning parameter by RMSE, cross-validation approach
     final_lasso <- finalize_workflow(
@@ -179,7 +179,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
 
 
 ######### Loop to train all sites ########
-theme <- "aquatics"
+
 for (theme in model_themes) {
   target = download_target(theme)
   type = ifelse(theme%in% c("terrestrial_30min", "terrestrial_daily"),"terrestrial",theme)
