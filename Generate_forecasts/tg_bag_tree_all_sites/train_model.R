@@ -24,8 +24,9 @@ here::i_am("Generate_forecasts/tg_bag_tree_all_sites/train_model.R")
 source(here("download_target.R"))
 
 # Set model types
-model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #This model is only relevant for three themes
+model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") 
 model_types = c("terrestrial","aquatics","phenology","beetles","ticks")
+
 
 
 #### Step 2: Get NOAA driver data
@@ -52,6 +53,7 @@ variables <- c('air_temperature',
 
 # Load stage 3 data
 noaa_date <- Sys.Date() - lubridate::days(1)
+last_training_date <- as_date("2022-12-31")
 endpoint = "data.ecoforecast.org"
 use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
 
@@ -64,6 +66,7 @@ load_stage3 <- function(site,endpoint,variables){
   parquet_file <- arrow::open_dataset(use_s3) |>
     dplyr::collect() |>
     dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
+                  datetime <= last_training_date,
                   variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
     na.omit() |> 
     mutate(datetime = lubridate::as_date(datetime)) |> 
@@ -87,10 +90,11 @@ if(file.exists(here("Generate_forecasts/noaa_downloads/past_allmeteo.csv"))) {
 
 ##### Training function ##########
 
+
 train_site <- function(sites, noaa_past_mean, target_variable) {
   message(paste0("Running ",target_variable," at all sites"))
   
- 
+
   # Merge in past NOAA data into the targets file, matching by date.
   site_target <- target |>
     dplyr::select(datetime, site_id, variable, observation) |>
@@ -103,26 +107,28 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
   
 
     # Tune and fit bag_tree model - making use of tidymodels
-    
+  n_folds <- 10
     #Recipe for training models
   rec_base <- recipe(site_target)|>
     step_rm(c("datetime"))|>
     update_role(everything(), new_role = "predictor")|>
     update_role({{target_variable}}, new_role = "outcome")|>
-    step_dummy(site_id)|>
     step_normalize(all_numeric(), -all_outcomes())
-
+  
     ## Set up tuning and fitting engine
   library(baguette)
   tune_bag_tree <- bag_tree(
     mode = "regression",
     tree_depth = tune(),
-    class_cost = tune(),
+    min_n = tune(),
+    cost_complexity = tune(),
     engine = "rpart"
   )
     
   #k-fold cross-validation
-  bag_tree_resamp <- vfold_cv(site_target, v = 5, repeats = 5, strata = site_id) #define k-fold cross validation procedure 
+  bag_tree_resamp <- vfold_cv(site_target, v = n_folds, repeats = 5) #define k-fold cross validation procedure - data volume in splits prevents stratification by site_id
+
+  
   ## Assemble workflow and tune
   wf <- workflow() %>%
     add_recipe(rec_base)
@@ -130,19 +136,19 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
   #Tune models
   #If running in parallel  
   library(doParallel)
-  cl <- makePSOCKcluster(8)
+  cl <- makePSOCKcluster(14)
   registerDoParallel(cl) 
   bag_tree_grid <- tune_grid(
     wf %>% add_model(tune_bag_tree),
     resamples = bag_tree_resamp,
-    grid = 5
+    grid = 40 
   )
   parallel::stopCluster(cl)
   rm(bag_tree_resamp)
   
   ## Select best model via RMSE
   best_bag_tree<-bag_tree_grid|>
-    select_best("rmse")
+    select_best(metric = "rmse")
   
   #select model with best tuning parameter by RMSE, cross-validation approach
   final_bag_tree <- finalize_workflow(
@@ -155,7 +161,7 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
   final_preds <- predict(final_fit, site_target)|>
     bind_cols(site_target)
     
-  final_rmse<-rmse(final_preds, estimate = .pred, truth = {{target_variable}})
+  final_rmse<-final_preds|>rmse(estimate = .pred, truth = {{target_variable}})
   
   #save model fit in minimal form
   res_bundle <-
@@ -164,9 +170,12 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
     bundle()
   
   saveRDS(res_bundle, here(paste0("Generate_forecasts/tg_bag_tree_all_sites/trained_models/", paste(theme, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-  tibble(theme = theme,  n_obs = nrow(site_target), target_variable = target_variable, rmse = final_rmse$.estimate, lambda = best_bag_tree$penalty)
+  tibble(theme = theme,  n_obs = nrow(site_target), target_variable = target_variable, rmse = final_rmse$.estimate, 
+         tree_depth = best_bag_tree$tree_depth, min_n= best_bag_tree$min_n, cost_complexity = best_bag_tree$cost_complexity,
+         last_target_date = last_training_date)
   
 }
+
 
 
 
