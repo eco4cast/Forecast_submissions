@@ -27,10 +27,10 @@ load_met <- function(forecast_date) {
   #Code from Freya Olsson to download and format meteorological data (had to be modified to deal with arrow issue on M1 mac). Major thanks to Freya here!!
   
   # Load stage 2 data
-  endpoint = "data.ecoforecast.org"
-  use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
-  use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
-  noaa_future <- arrow::open_dataset(use_s3) |>
+  #endpoint = "data.ecoforecast.org"
+  #use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
+  #use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
+  noaa_future <- neon4cast::noaa_stage2(start_date = noaa_date) |>
     dplyr::collect() |>
     dplyr::filter(site_id %in% all_sites,
                   datetime >= forecast_date,
