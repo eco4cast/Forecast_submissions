@@ -3,7 +3,8 @@ generate_tg_forecast <- function(forecast_date,
                                  model_themes = model_themes,
                                  model_id = model_id,
                                  all_sites = F,
-                                 noaa = T) {
+                                 noaa = T,
+                                 vars_manual = NULL) {
   #### Step 1: Define model_themes and types
   model_types = model_themes
   #Replace terrestrial daily and 30min with terrestrial
@@ -57,6 +58,10 @@ generate_tg_forecast <- function(forecast_date,
       if(theme == "terrestrial_30min")  {vars = c("nee","le")
       horiz = 30
       step = 1/24/2}
+      
+      if(!is.null(vars_manual)){
+        vars = vars_manual
+      }
       
       ## Test with a single site first!
       #forecast <- map_dfr(vars,run_all_vars,sites[23],forecast_model,noaa_past_mean,noaa_future_daily)
