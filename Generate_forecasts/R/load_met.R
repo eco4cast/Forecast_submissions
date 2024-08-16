@@ -52,25 +52,29 @@ load_met <- function(forecast_date) {
   # Load stage3 data. 
   #The bucket is somewhat differently organized here, necessitating a different structure. 
   #This will take a LONG TIME to load, especially if we are running all sites (I estimate 10 min on my computer)
-  load_stage3 <- function(site,endpoint,variables){
+  load_stage3 <- function(site, variables){
     message('load met for ', site)
     #use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage3/parquet/", site)
     #use_s3 <- arrow::s3_bucket(use_bucket, endpoint_override = endpoint, anonymous = TRUE)
-    parquet_file <- neon4cast::noaa_stage3(start_date = noaa_date) |>
-      dplyr::collect() |>
-      dplyr::filter(parameter <= 31,
+    parquet_file <- neon4cast::noaa_stage3() |>
+      dplyr::filter(site_id == site,
+                    parameter <= 31,
                     datetime >= lubridate::ymd('2017-01-01'),
                     variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
+    
       na.omit() |> 
       mutate(datetime = lubridate::as_date(datetime)) |> 
       group_by(datetime, site_id, variable) |> 
-      summarize(prediction = mean(prediction, na.rm = TRUE), .groups = "drop") |> 
+      summarize(prediction = mean(prediction, na.rm = TRUE), .groups = "drop")|>  
+      dplyr::collect() |> 
       pivot_wider(names_from = variable, values_from = prediction) |> 
       # convert air temp to C
       mutate(air_temperature = air_temperature - 273.15)
   }
   
-  noaa_past_mean <- map_dfr(all_sites, load_stage3,endpoint,variables)
+
+  noaa_past_mean <- map_dfr(all_sites, load_stage3,variables)
+  
   write.csv(noaa_past_mean,paste0("./Generate_forecasts/noaa_downloads/noaa_past_mean_",forecast_date,".csv"),row.names = F) #Save the past meteorology
   return()
 }
