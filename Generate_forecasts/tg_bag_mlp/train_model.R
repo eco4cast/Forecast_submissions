@@ -1,4 +1,4 @@
-#Script creates trained model for each site and target variable using Random Forest in regression mode
+#Script creates trained model for each site and target variable using bagged MLP
 
 
 #### Step 1: Load libraries
@@ -52,6 +52,7 @@ variables <- c('air_temperature',
 
 # Load stage 3 data
 noaa_date <- Sys.Date() - lubridate::days(1)
+last_training_date <- as_date("2022-12-31")
 endpoint = "data.ecoforecast.org"
 use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
 
@@ -64,6 +65,7 @@ load_stage3 <- function(site,endpoint,variables){
   parquet_file <- arrow::open_dataset(use_s3) |>
     dplyr::collect() |>
     dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
+                  datetime <= last_training_date,
                   variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
     na.omit() |> 
     mutate(datetime = lubridate::as_date(datetime)) |> 
@@ -144,7 +146,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     #Tune models
     #If running in parallel  
     library(doParallel)
-    cl <- makePSOCKcluster(4) #SET 
+    cl <- makePSOCKcluster(14) #SET 
     registerDoParallel(cl) 
     bag_mlp_grid <- 
       tune_grid(
@@ -157,7 +159,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     ## Select best model via RMSE
     best_mod<-bag_mlp_grid|>
-      select_best("rmse")
+      select_best(metric = "rmse")
     rm(bag_mlp_grid)
     
     #select model with best tuning parameter by RMSE, cross-validation approach
@@ -186,7 +188,8 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     
     saveRDS(res_bundle, here(paste0("Generate_forecasts/tg_bag_mlp/trained_models/", paste(theme, site, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-    tibble(theme = theme, site = site, n_obs = nrow(site_target), n_vfolds = n_folds, target_variable = target_variable, rmse = final_rmse$.estimate, hidden_units = best_mod$hidden_units, penalty = best_mod$penalty)#|>
+    tibble(theme = theme, site = site, n_obs = nrow(site_target), n_vfolds = n_folds, target_variable = target_variable, 
+           rmse = final_rmse$.estimate, hidden_units = best_mod$hidden_units, penalty = best_mod$penalty, last_targets_date = last_training_date)#|>
       #bind_cols(vip)
     
   }
