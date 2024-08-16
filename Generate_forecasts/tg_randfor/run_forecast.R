@@ -1,4 +1,5 @@
-source("./Generate_forecasts/humidity_lm/forecast_model.R")
+source("./Generate_forecasts/tg_randfor/forecast_model.R")
+
 
 tryCatch({
   generate_tg_forecast(forecast_date = Sys.Date(),

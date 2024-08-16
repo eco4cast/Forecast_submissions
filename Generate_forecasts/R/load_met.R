@@ -73,7 +73,8 @@ load_met <- function(forecast_date) {
   }
   
 
-  noaa_past_mean <- map_dfr(all_sites, load_stage3,variables)
+  noaa_past_mean <- map(all_sites, load_stage3,variables)|>
+    list_rbind()
   
   write.csv(noaa_past_mean,paste0("./Generate_forecasts/noaa_downloads/noaa_past_mean_",forecast_date,".csv"),row.names = F) #Save the past meteorology
   return()
