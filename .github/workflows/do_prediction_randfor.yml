@@ -20,12 +20,8 @@ jobs:
       - name: install extra R packages
         run: R -e 'install.packages(c("tidymodels", "bundle", "ranger"))'
 # Point to the right path, run the right Rscript command
-      - name: Update observed meterological data
-        run: Rscript ./Generate_forecasts/noaa_downloads/write_noaa_past_meteo.R
       - name: Run automatic prediction file (random forest)
-        run: Rscript ./Generate_forecasts/tg_randfor/forecast_model.R
-      - name: Run automatic prediction file (random forest all sites)
-        run: Rscript ./Generate_forecasts/tg_randfor_all_sites/forecast_model.R
-      - name: Run automatic prediction file (random forest, parameter and process uncertainty)
-        run: Rscript ./Generate_forecasts/tg_randfor_parmens/forecast_model.R
+        run: Rscript ./Generate_forecasts/tg_randfor/run_forecast.R
+
+
 
