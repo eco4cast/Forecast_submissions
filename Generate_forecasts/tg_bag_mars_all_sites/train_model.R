@@ -21,6 +21,7 @@ library(tsibble)
 library(fable)
 library(arrow)
 
+
 here::i_am("Generate_forecasts/tg_bag_mars_all_sites/train_model.R")
 source(here("download_target.R"))
 
@@ -53,6 +54,7 @@ variables <- c('air_temperature',
 
 # Load stage 3 data
 noaa_date <- Sys.Date() - lubridate::days(1)
+last_training_date <- as_date("2022-12-31")
 endpoint = "data.ecoforecast.org"
 use_bucket <- paste0("neon4cast-drivers/noaa/gefs-v12/stage2/parquet/0/", noaa_date)
 
@@ -65,6 +67,7 @@ load_stage3 <- function(site,endpoint,variables){
   parquet_file <- arrow::open_dataset(use_s3) |>
     dplyr::collect() |>
     dplyr::filter(datetime >= lubridate::ymd('2017-01-01'),
+                  datetime <= last_training_date,
                   variable %in% variables)|> #It would be more efficient to filter before collecting, but this is not running on my M1 mac
     na.omit() |> 
     mutate(datetime = lubridate::as_date(datetime)) |> 
@@ -88,6 +91,7 @@ if(file.exists(here("Generate_forecasts/noaa_downloads/past_allmeteo.csv"))) {
 
 ##### Training function ##########
 
+
 train_site <- function(sites, noaa_past_mean, target_variable) {
   message(paste0("Running ",target_variable," at all sites"))
   
@@ -104,17 +108,17 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
   
 
     # Tune and fit bag_mars model - making use of tidymodels
-    
+  
+  n_folds <- 10 
     #Recipe for training models
   rec_base <- recipe(site_target)|>
     step_rm(c("datetime"))|>
     update_role(everything(), new_role = "predictor")|>
     update_role({{target_variable}}, new_role = "outcome")|>
-    step_dummy(site_id)|>
     step_normalize(all_numeric(), -all_outcomes())
 
     ## Set up tuning and fitting engine
-  library(baguette)
+  library(baguette);library(earth)
   tune_bag_mars <- bag_mars(
     mode = "regression",
     num_terms = tune(),
@@ -124,7 +128,7 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
   )
     
   #k-fold cross-validation
-  bag_mars_resamp <- vfold_cv(site_target, v = 5, repeats = 5, strata = site_id) #define k-fold cross validation procedure 
+  bag_mars_resamp <- vfold_cv(site_target, v = n_folds, repeats = 5) #define k-fold cross validation procedure - too little data to stratify
   ## Assemble workflow and tune
   wf <- workflow() %>%
     add_recipe(rec_base)
@@ -132,19 +136,19 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
   #Tune models
   #If running in parallel  
   library(doParallel)
-  cl <- makePSOCKcluster(8)
+  cl <- makePSOCKcluster(14)
   registerDoParallel(cl) 
   bag_mars_grid <- tune_grid(
     wf %>% add_model(tune_bag_mars),
     resamples = bag_mars_resamp,
-    grid = 5
+    grid = 20
   )
   parallel::stopCluster(cl)
   rm(bag_mars_resamp)
   
   ## Select best model via RMSE
   best_bag_mars<-bag_mars_grid|>
-    select_best("rmse")
+    select_best(metric = "rmse")
   
   #select model with best tuning parameter by RMSE, cross-validation approach
   final_bag_mars <- finalize_workflow(
@@ -166,7 +170,9 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
     bundle()
   
   saveRDS(res_bundle, here(paste0("Generate_forecasts/tg_bag_mars_all_sites/trained_models/", paste(theme, target_variable,"trained",Sys.Date(), sep = "-"), ".Rds")))
-  tibble(theme = theme,  n_obs = nrow(site_target), target_variable = target_variable, rmse = final_rmse$.estimate, lambda = best_bag_mars$penalty)
+  tibble(theme = theme,  n_obs = nrow(site_target), target_variable = target_variable, rmse = final_rmse$.estimate, 
+         num_terms = best_bag_mars$num_terms,
+         last_targets_date = last_training_date)
   
 }
 
