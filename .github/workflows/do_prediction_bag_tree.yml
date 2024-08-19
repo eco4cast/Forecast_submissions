@@ -20,8 +20,6 @@ jobs:
       - name: install extra R packages
         run: R -e 'install.packages(c("tidymodels", "bundle", "baguette"))'
 # Point to the right path, run the right Rscript command
-      - name: Run automatic prediction file (bag tree)
-        run: Rscript ./Generate_forecasts/tg_bag_tree/run_forecast.R
       - name: Run automatic prediction file (bag tree all sites)
         run: Rscript ./Generate_forecasts/tg_bag_tree_all_sites/run_forecast.R
 
