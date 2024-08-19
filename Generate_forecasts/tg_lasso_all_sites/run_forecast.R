@@ -1,5 +1,4 @@
 source("./Generate_forecasts/tg_lasso_all_sites/forecast_model.R")
-model_themes <- "aquatics"
  
 tryCatch({
   generate_tg_forecast(forecast_date = Sys.Date(),
