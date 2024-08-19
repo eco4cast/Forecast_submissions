@@ -18,10 +18,8 @@ jobs:
       - name: install R packages
         run: R -e 'source("install.R")'
       - name: install extra R packages
-        run: R -e 'install.packages(c("tidymodels", "bundle", "ranger"))'
+        run: R -e 'install.packages(c("tidymodels", "bundle", "baguette"))'
 # Point to the right path, run the right Rscript command
-      - name: Run automatic prediction file (bag map)
-        run: Rscript ./Generate_forecasts/tg_bag_mlp/forecast_model.R
-      - name: Run automatic prediction file (bag map all sites)
-        run: Rscript ./Generate_forecasts/tg_bag_mlp_all_sites/forecast_model.R
+      - name: Run automatic prediction file (bag mlp)
+        run: Rscript ./Generate_forecasts/tg_bag_mlp/run_forecast.R
 

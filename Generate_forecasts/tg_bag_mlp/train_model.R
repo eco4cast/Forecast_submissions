@@ -3,7 +3,6 @@
 
 #### Step 1: Load libraries
 library(here)
-library(ranger) #needed for random forest implementation
 library(doParallel)
 library(tidyverse)
 library(tidymodels)
@@ -19,6 +18,7 @@ library(decor)
 library(tsibble)
 library(fable)
 library(arrow)
+library(baguette)
 
 here::i_am("Generate_forecasts/tg_randfor/train_model.R")
 source(here("download_target.R"))
@@ -129,7 +129,7 @@ train_site <- function(site, noaa_past_mean, target_variable) {
     
     ## Set up tuning and fitting engine
     
-    library(baguette)
+  
     tune_bag_mlp <- bag_mlp(
       mode = "regression",
       hidden_units = tune(),
