@@ -1,0 +1,9 @@
+source("./Generate_forecasts/tg_lasso/forecast_model.R")
+model_theme <- "aquatics" # TESTING
+
+tryCatch({
+  generate_tg_forecast(forecast_date = Sys.Date(),
+                       forecast_model = forecast_model,
+                       model_themes = model_themes,
+                       model_id = model_id)
+}, error=function(e){cat("ERROR with forecast generation:\n",conditionMessage(e), "\n")})
