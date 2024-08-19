@@ -19,6 +19,7 @@ library(decor)
 library(tsibble)
 library(fable)
 library(arrow)
+library(baguette)
 
 here::i_am("Generate_forecasts/tg_bag_tree_all_sites/train_model.R")
 source(here("download_target.R"))
@@ -116,7 +117,7 @@ train_site <- function(sites, noaa_past_mean, target_variable) {
     step_normalize(all_numeric(), -all_outcomes())
   
     ## Set up tuning and fitting engine
-  library(baguette)
+  
   tune_bag_tree <- bag_tree(
     mode = "regression",
     tree_depth = tune(),
