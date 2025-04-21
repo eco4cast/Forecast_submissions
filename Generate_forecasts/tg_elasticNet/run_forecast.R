@@ -1,4 +1,4 @@
-source("./Generate_forecasts/precip_lm/forecast_model.R")
+source("./Generate_forecasts/tg_elasticNet/forecast_model.R")
 
 tryCatch({
   generate_tg_forecast(forecast_date = Sys.Date(),

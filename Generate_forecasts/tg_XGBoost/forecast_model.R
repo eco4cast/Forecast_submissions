@@ -1,4 +1,4 @@
-# tg_precip_lm model
+# tg_XGBoost model
 # written by ASL, 21 Jan 2023
 # edited 2023-09-08 to consolidate and set up framework for filling in missed dates
 
@@ -14,13 +14,15 @@ source("ignore_sigpipe.R")
 library(tsibble)
 library(fable)
 library(arrow)
+library(caret)
+library(xgboost)
 source("download_target.R")
 source("./Generate_forecasts/R/load_met.R")
 source("./Generate_forecasts/R/generate_tg_forecast.R")
 source("./Generate_forecasts/R/run_all_vars.R")
 
 model_themes = c("terrestrial_daily","aquatics","phenology","beetles","ticks") #By default, run model across all themes, except terrestrial 30min (not currently configured)
-model_id = "tg_precip_lm"
+model_id = "tg_XGBoost"
 
 #### Define the forecast model for a site
 forecast_model <- function(site,
@@ -44,29 +46,54 @@ forecast_model <- function(site,
     tidyr::pivot_wider(names_from = "variable", values_from = "observation") |>
     dplyr::left_join(noaa_past_mean%>%
                        filter(site_id == site), 
-                     by = c("datetime", "site_id"))
+                     by = c("datetime", "site_id")) 
   
   if(!target_variable%in%names(site_target)){
     message(paste0("No target observations at site ",site,". Skipping forecasts at this site."))
     return()
     
-  } else if(sum(!is.na(site_target$precipitation_flux)&!is.na(site_target[target_variable]))==0){
-    message(paste0("No historical precip data that corresponds with target observations at site ",site,". Skipping forecasts at this site."))
+  } else if(sum(!is.na(site_target$air_temperature)&!is.na(site_target[target_variable]))==0){
+    message(paste0("No historical air temp data that corresponds with target observations at site ",site,". Skipping forecasts at this site."))
     return()
     
   } else {
-    # Fit linear model based on past data: target = m * precip + b
-    fit <- lm(get(target_variable) ~ precipitation_flux, data = site_target) #THIS IS THE MODEL
+    data <- site_target %>% 
+      select(all_of(c(target_variable, "air_temperature", "air_pressure", 
+                      "precipitation_flux", "relative_humidity", 
+                      "surface_downwelling_shortwave_flux_in_air", "eastward_wind", 
+                      "northward_wind", "surface_downwelling_longwave_flux_in_air"))) %>%
+      na.omit()
+    matrix <- as.matrix(data %>% select(-all_of(target_variable)))
+    cv <- xgboost::xgb.cv(label = data[[target_variable]],
+                          data = matrix,
+                          nfold = 10,
+                          nrounds = 100,
+                          early_stopping_rounds = 2,
+                          eval_metric = "rmse")
+    nrounds <- cv$best_iteration
+    fit <- xgboost(data = matrix,
+                   label = data[[target_variable]],
+                   nrounds = nrounds)
+    pred <- predict(fit, matrix)
+    #plot(site_target[[target_variable]])
+    #lines(pred)
     
-    #  Get 30-day predicted precipitation_flux ensemble at the site
+    # Get 30-day predicted temp ensemble at the site
     noaa_future <- noaa_future_daily%>%
-      filter(site_id==site)
+      filter(site_id==site) |>
+      select(all_of(c("datetime","parameter","air_temperature", "air_pressure", 
+                      "precipitation_flux", "relative_humidity", 
+                      "surface_downwelling_shortwave_flux_in_air", "eastward_wind", 
+                      "northward_wind", "surface_downwelling_longwave_flux_in_air"))) %>%
+      na.omit()
     
-    # use the linear model (predict.lm) to forecast target variable for each ensemble member
+    # use the model to forecast target variable for each ensemble member
     forecast <- 
       noaa_future |> 
       mutate(site_id = site,
-             prediction = predict(fit, tibble(precipitation_flux)), #THIS IS THE FORECAST STEP
+             prediction = predict(fit, 
+                                  as.matrix(noaa_future %>% 
+                                              select(-all_of(c("datetime","parameter"))))), #THIS IS THE FORECAST STEP
              variable = target_variable)
     
     # Format results to EFI standard
@@ -77,4 +104,4 @@ forecast_model <- function(site,
       select(model_id, datetime, reference_datetime,
              site_id, family, parameter, variable, prediction)
   }
-}
+  }
