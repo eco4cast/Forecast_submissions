@@ -99,7 +99,12 @@ generate_tg_forecast <- function(forecast_date,
       }
       
       if(theme %in% c("beetles","ticks")){
-        forecast = forecast%>% filter(wday(datetime, label=TRUE)=="Mon") #The beetles and ticks challenges only want weekly forecasts
+        forecast = forecast%>% 
+          filter(wday(datetime, label=TRUE)=="Mon") %>% #The beetles and ticks challenges only want weekly forecasts
+          mutate(duration = "P1W")
+      } else {
+        forecast <- forecast %>%
+          mutate(duration = "P1D")
       }
       
       #Forecast output file name in standards requires for Challenge.
@@ -108,7 +113,9 @@ generate_tg_forecast <- function(forecast_date,
       forecast_file <- paste0(theme,"-",file_date,"-",model_id,".csv.gz")
       
       #Write csv to disk
-      write_csv(forecast, forecast_file)
+      write_csv(forecast %>%
+                  mutate(project_id = "neon4cast"), 
+                forecast_file)
       
       # Step 5: Submit forecast!
       neon4cast::submit(forecast_file = forecast_file, metadata = NULL, ask = FALSE)
