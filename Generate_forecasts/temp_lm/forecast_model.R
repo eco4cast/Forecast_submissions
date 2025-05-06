@@ -8,7 +8,6 @@
 library(tidyverse)
 library(neon4cast)
 library(lubridate)
-library(rMR)
 library(glue)
 source("ignore_sigpipe.R")
 library(tsibble)
